@@ -1,0 +1,33 @@
+name: Deploy a meli-dev
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      # El .env y db.sqlite3 viven en el directorio real de despliegue, nunca en el workspace
+      # efímero del runner (actions/checkout lo recrea desde cero en cada corrida) — mismo
+      # criterio que el runbook de despliegue de gestorBQ.
+      - name: Sincronizar código al directorio real de despliegue
+        run: |
+          rsync -a --delete \
+            --exclude='.env' --exclude='.git' --exclude='db.sqlite3' \
+            "$GITHUB_WORKSPACE"/ /home/bioquimicacl/meli-bq-dev/
+
+      - name: Build y reinicio del contenedor
+        working-directory: /home/bioquimicacl/meli-bq-dev
+        run: |
+          docker compose build
+          docker compose up -d
+
+      - name: Migraciones
+        working-directory: /home/bioquimicacl/meli-bq-dev
+        run: docker compose exec -T app python manage.py migrate --noinput
+
+      - name: Limpieza de imágenes viejas
+        run: docker image prune -f
