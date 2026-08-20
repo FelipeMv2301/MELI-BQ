@@ -4,6 +4,7 @@ feedback-tests-obligatorios: los clientes hacia APIs externas se testean con la 
 """
 
 from unittest.mock import Mock, patch
+from urllib.parse import parse_qs
 
 from django.test import SimpleTestCase, override_settings
 
@@ -86,14 +87,16 @@ class ObtenerCatalogoTests(SimpleTestCase):
 
 @override_settings(**_ML_SETTINGS_TEST)
 class ConstruirUrlAutorizacionTests(SimpleTestCase):
-    def test_incluye_client_id_redirect_uri_y_state(self):
+    def test_incluye_client_id_redirect_uri_state_y_scope(self):
         url = ml_client.construir_url_autorizacion("https://meli-dev.bioquimica.cl/catalogo/ml/callback/", "abc123")
+        query = parse_qs(url.split("?", 1)[1])
 
         self.assertTrue(url.startswith("https://auth.mercadolibre.cl/authorization?"))
-        self.assertIn("client_id=123456", url)
-        self.assertIn("redirect_uri=https://meli-dev.bioquimica.cl/catalogo/ml/callback/", url)
-        self.assertIn("state=abc123", url)
-        self.assertIn("response_type=code", url)
+        self.assertEqual(query["client_id"], ["123456"])
+        self.assertEqual(query["redirect_uri"], ["https://meli-dev.bioquimica.cl/catalogo/ml/callback/"])
+        self.assertEqual(query["state"], ["abc123"])
+        self.assertEqual(query["response_type"], ["code"])
+        self.assertEqual(query["scope"], ["offline_access read write"])
 
 
 @override_settings(**_ML_SETTINGS_TEST)

@@ -3,6 +3,7 @@ Reglas de negocio del Módulo 1 — la vista solo orquesta y presenta (mismo cri
 que gestorBQ: pedidos/services.py).
 """
 
+import logging
 from datetime import timedelta
 
 from django.utils import timezone
@@ -22,6 +23,8 @@ _MARGEN_REFRESH = timedelta(minutes=10)
 # se muestra acá es el que hoy alimenta WooCommerce, no necesariamente el que se termine
 # sincronizando a ML (esa regla de bodega por SKU es HU-CM3.2, todavía sin definir).
 _BODEGAS_WEB = ("stock_01", "stock_11")
+
+logger = logging.getLogger(__name__)
 
 
 def obtener_config_y_mapa(skus):
@@ -74,11 +77,25 @@ def guardar_token_ml(datos_token):
     """
     HU-CM0.2 — persiste el resultado de ml_client.intercambiar_code_por_token/refrescar_token.
     Reemplaza la fila anterior entera: una sola fila siempre, una app = un seller.
+
+    refresh_token con .get() y no ["..."]: si el authorization_code se pidió sin scope
+    offline_access, ML devuelve un token "online" sin refresh_token y esto no debe explotar con
+    KeyError (pasó en producción contra meli-dev el 2026-08-20) — mejor guardar lo que llegó,
+    conservando el refresh_token anterior si había uno, y loguearlo para verlo en el log real.
     """
+    anterior = MLToken.objects.first()
+    refresh_token = datos_token.get("refresh_token")
+    if not refresh_token:
+        refresh_token = anterior.refresh_token if anterior else ""
+        logger.warning(
+            "ML no devolvió refresh_token (¿falta scope=offline_access?). Claves recibidas: %s",
+            list(datos_token.keys()),
+        )
+
     MLToken.objects.all().delete()
     return MLToken.objects.create(
         access_token=datos_token["access_token"],
-        refresh_token=datos_token["refresh_token"],
+        refresh_token=refresh_token,
         expires_at=timezone.now() + timedelta(seconds=datos_token["expires_in"]),
         ml_user_id=datos_token["user_id"],
     )

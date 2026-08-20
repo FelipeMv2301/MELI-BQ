@@ -5,6 +5,8 @@ este módulo solo habla HTTP, no guarda nada en la base.
 Referencia completa: backlog_proyecto/Documentaciones/MercadoLibre/*.md
 """
 
+from urllib.parse import urlencode
+
 import requests
 from django.conf import settings
 
@@ -17,15 +19,20 @@ def construir_url_autorizacion(redirect_uri, state):
     HU-CM0.2 — URL a la que se redirige el navegador para que el vendedor autorice la app.
     Dominio .cl fijo por ahora (ML_SITE_ID=MLC, proyecto de un solo país) — si algún día se
     soportan otros sites, esto necesita un mapeo site_id -> dominio de auth.
+
+    scope=offline_access es necesario para que ML devuelva refresh_token junto al access_token —
+    sin él, la app queda "online" (solo access_token, sin forma de renovarlo) y
+    intercambiar_code_por_token revienta con KeyError('refresh_token') — confirmado en producción
+    contra meli-dev el 2026-08-20.
     """
     params = {
         "response_type": "code",
         "client_id": settings.ML_APP_ID,
         "redirect_uri": redirect_uri,
         "state": state,
+        "scope": "offline_access read write",
     }
-    query = "&".join(f"{clave}={valor}" for clave, valor in params.items())
-    return f"{AUTH_URL}?{query}"
+    return f"{AUTH_URL}?{urlencode(params)}"
 
 
 def intercambiar_code_por_token(authorization_code, redirect_uri, code_verifier=None):

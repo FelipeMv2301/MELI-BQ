@@ -393,6 +393,21 @@ class GuardarTokenMlTests(TestCase):
         self.assertEqual(MLToken.objects.count(), 1)
         self.assertEqual(MLToken.objects.get().access_token, "APP_USR-nuevo")
 
+    def test_sin_refresh_token_no_explota_y_conserva_el_anterior(self):
+        services.guardar_token_ml(_DATOS_TOKEN)
+        datos_sin_refresh = {"access_token": "APP_USR-online", "expires_in": 10800, "user_id": 999}
+
+        services.guardar_token_ml(datos_sin_refresh)
+
+        self.assertEqual(MLToken.objects.get().refresh_token, "TG-xyz")
+
+    def test_sin_refresh_token_y_sin_fila_anterior_guarda_vacio(self):
+        datos_sin_refresh = {"access_token": "APP_USR-online", "expires_in": 10800, "user_id": 999}
+
+        services.guardar_token_ml(datos_sin_refresh)
+
+        self.assertEqual(MLToken.objects.get().refresh_token, "")
+
 
 class HayTokenMlTests(TestCase):
     def test_false_si_no_hay_ninguno(self):
