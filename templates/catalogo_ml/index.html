@@ -1,7 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Catálogo — MELI-BQ{% endblock %}
 {% block content %}
-<h1 class="text-xl font-semibold mb-4">Selección y sync de catálogo hacia Mercado Libre</h1>
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-xl font-semibold">Selección y sync de catálogo hacia Mercado Libre</h1>
+  {% if hay_token_ml %}
+  <span class="text-sm text-green-700">✓ Conectado a Mercado Libre</span>
+  {% else %}
+  <a href="{% url 'catalogo_ml:ml_login' %}"
+     class="text-sm px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 rounded font-medium">
+    Conectar con Mercado Libre
+  </a>
+  {% endif %}
+</div>
 
 <input
   type="text"

@@ -1,15 +1,17 @@
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.utils import timezone
 
 from utils import limpiar_descripcion_html
 
 from . import services
-from .models import MLItemMap, SkuSyncConfig
+from .models import MLItemMap, MLToken, SkuSyncConfig
 
 
 class LimpiarDescripcionHtmlTests(SimpleTestCase):
@@ -362,3 +364,147 @@ class ToggleMasivoTests(TestCase):
         self.client.post("/catalogo/masivo/", {"campo": "sync_stock", "valor": "true", "skus": ["ML000111"]})
 
         self.assertEqual(SkuSyncConfig.objects.get(sku="ML000111").updated_by, self.usuario)
+
+
+_DATOS_TOKEN = {"access_token": "APP_USR-abc", "refresh_token": "TG-xyz", "expires_in": 10800, "user_id": 999}
+
+
+class GuardarTokenMlTests(TestCase):
+    def test_crea_la_fila_si_no_existia(self):
+        services.guardar_token_ml(_DATOS_TOKEN)
+
+        token = MLToken.objects.get()
+        self.assertEqual(token.access_token, "APP_USR-abc")
+        self.assertEqual(token.refresh_token, "TG-xyz")
+        self.assertEqual(token.ml_user_id, 999)
+
+    def test_calcula_expires_at_desde_expires_in(self):
+        antes = timezone.now()
+        services.guardar_token_ml(_DATOS_TOKEN)
+        token = MLToken.objects.get()
+
+        self.assertGreater(token.expires_at, antes + timedelta(seconds=10799))
+        self.assertLess(token.expires_at, antes + timedelta(seconds=10801))
+
+    def test_reemplaza_la_fila_anterior_en_vez_de_acumular(self):
+        services.guardar_token_ml(_DATOS_TOKEN)
+        services.guardar_token_ml({**_DATOS_TOKEN, "access_token": "APP_USR-nuevo"})
+
+        self.assertEqual(MLToken.objects.count(), 1)
+        self.assertEqual(MLToken.objects.get().access_token, "APP_USR-nuevo")
+
+
+class HayTokenMlTests(TestCase):
+    def test_false_si_no_hay_ninguno(self):
+        self.assertFalse(services.hay_token_ml())
+
+    def test_true_si_ya_se_guardo_uno(self):
+        services.guardar_token_ml(_DATOS_TOKEN)
+        self.assertTrue(services.hay_token_ml())
+
+
+class ObtenerTokenValidoTests(TestCase):
+    def test_sin_token_lanza_error_claro(self):
+        with self.assertRaises(services.TokenMLNoConfigurado):
+            services.obtener_token_valido()
+
+    def test_token_vigente_se_devuelve_sin_refrescar(self):
+        MLToken.objects.create(
+            access_token="vigente", refresh_token="TG-1",
+            expires_at=timezone.now() + timedelta(hours=5), ml_user_id=1,
+        )
+        with patch("catalogo_ml.services.ml_client.refrescar_token") as refrescar_mock:
+            resultado = services.obtener_token_valido()
+
+        self.assertEqual(resultado, "vigente")
+        refrescar_mock.assert_not_called()
+
+    def test_token_por_vencer_se_refresca_solo(self):
+        MLToken.objects.create(
+            access_token="por_vencer", refresh_token="TG-viejo",
+            expires_at=timezone.now() + timedelta(minutes=5), ml_user_id=1,
+        )
+        with patch("catalogo_ml.services.ml_client.refrescar_token") as refrescar_mock:
+            refrescar_mock.return_value = {**_DATOS_TOKEN, "access_token": "recien_refrescado"}
+            resultado = services.obtener_token_valido()
+
+        refrescar_mock.assert_called_once_with("TG-viejo")
+        self.assertEqual(resultado, "recien_refrescado")
+        self.assertEqual(MLToken.objects.get().access_token, "recien_refrescado")
+
+
+class MlLoginViewTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+
+    def test_requiere_login(self):
+        self.client.logout()
+        respuesta = self.client.get("/catalogo/ml/conectar/")
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertIn("/accounts/login/", respuesta.url)
+
+    def test_redirige_a_mercadolibre_con_state_guardado_en_sesion(self):
+        respuesta = self.client.get("/catalogo/ml/conectar/")
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertTrue(respuesta.url.startswith("https://auth.mercadolibre.cl/authorization?"))
+        self.assertIn("state=", respuesta.url)
+        self.assertIn("ml_oauth_state", self.client.session)
+
+
+class MlCallbackViewTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+
+    def _con_state_en_sesion(self, state="el-state"):
+        session = self.client.session
+        session["ml_oauth_state"] = state
+        session.save()
+        return state
+
+    def test_error_de_ml_no_rompe_y_redirige_con_mensaje(self):
+        respuesta = self.client.get("/catalogo/ml/callback/", {"error": "access_denied"})
+
+        self.assertRedirects(respuesta, "/catalogo/")
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("rechazó" in m for m in mensajes))
+
+    def test_state_invalido_no_canjea_nada(self):
+        self._con_state_en_sesion("el-state-correcto")
+
+        with patch("catalogo_ml.views.ml_client.intercambiar_code_por_token") as canje_mock:
+            self.client.get("/catalogo/ml/callback/", {"code": "abc", "state": "otro-distinto"})
+
+        canje_mock.assert_not_called()
+        self.assertFalse(services.hay_token_ml())
+
+    def test_sin_code_no_canjea_nada(self):
+        state = self._con_state_en_sesion()
+
+        with patch("catalogo_ml.views.ml_client.intercambiar_code_por_token") as canje_mock:
+            self.client.get("/catalogo/ml/callback/", {"state": state})
+
+        canje_mock.assert_not_called()
+
+    def test_code_y_state_correctos_guardan_el_token(self):
+        state = self._con_state_en_sesion()
+
+        with patch("catalogo_ml.views.ml_client.intercambiar_code_por_token") as canje_mock:
+            canje_mock.return_value = _DATOS_TOKEN
+            respuesta = self.client.get("/catalogo/ml/callback/", {"code": "EL_CODE", "state": state})
+
+        self.assertRedirects(respuesta, "/catalogo/")
+        self.assertTrue(services.hay_token_ml())
+        self.assertEqual(MLToken.objects.get().access_token, "APP_USR-abc")
+
+    def test_falla_el_canje_no_rompe_con_500(self):
+        state = self._con_state_en_sesion()
+
+        with patch("catalogo_ml.views.ml_client.intercambiar_code_por_token") as canje_mock:
+            canje_mock.side_effect = Exception("ML devolvió 400")
+            respuesta = self.client.get("/catalogo/ml/callback/", {"code": "EL_CODE", "state": state})
+
+        self.assertRedirects(respuesta, "/catalogo/")
+        self.assertFalse(services.hay_token_ml())

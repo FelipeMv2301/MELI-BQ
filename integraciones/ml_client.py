@@ -1,26 +1,61 @@
 """
 Cliente de la API de Mercado Libre. Sin modelos propios (viven en catalogo_ml/facturacion_ml) —
-este módulo solo habla HTTP.
+este módulo solo habla HTTP, no guarda nada en la base.
 
 Referencia completa: backlog_proyecto/Documentaciones/MercadoLibre/*.md
-
-Pendiente de credenciales reales — SPK-MELI-1 (ver backlog_proyecto/plan-integracion-mercadolibre.md).
-Todas las funciones son stubs hasta que la app de ML exista y HU-CM0.2 se implemente.
 """
 
+import requests
 from django.conf import settings
 
 BASE_URL = "https://api.mercadolibre.com"
+AUTH_URL = "https://auth.mercadolibre.cl/authorization"
 
 
-def obtener_access_token(authorization_code, code_verifier=None):
+def construir_url_autorizacion(redirect_uri, state):
+    """
+    HU-CM0.2 — URL a la que se redirige el navegador para que el vendedor autorice la app.
+    Dominio .cl fijo por ahora (ML_SITE_ID=MLC, proyecto de un solo país) — si algún día se
+    soportan otros sites, esto necesita un mapeo site_id -> dominio de auth.
+    """
+    params = {
+        "response_type": "code",
+        "client_id": settings.ML_APP_ID,
+        "redirect_uri": redirect_uri,
+        "state": state,
+    }
+    query = "&".join(f"{clave}={valor}" for clave, valor in params.items())
+    return f"{AUTH_URL}?{query}"
+
+
+def intercambiar_code_por_token(authorization_code, redirect_uri, code_verifier=None):
     """HU-CM0.2 — canjea el authorization_code por access_token/refresh_token. Ver autenticacion.md."""
-    raise NotImplementedError("Pendiente SPK-MELI-1 (credenciales de la app ML)")
+    datos = {
+        "grant_type": "authorization_code",
+        "client_id": settings.ML_APP_ID,
+        "client_secret": settings.ML_APP_SECRET,
+        "code": authorization_code,
+        "redirect_uri": redirect_uri,
+    }
+    if code_verifier:
+        datos["code_verifier"] = code_verifier
+
+    respuesta = requests.post(f"{BASE_URL}/oauth/token", data=datos, timeout=15)
+    respuesta.raise_for_status()
+    return respuesta.json()
 
 
 def refrescar_token(refresh_token):
     """HU-CM0.2 — el refresh_token es de un solo uso, persistir el nuevo en cada llamada."""
-    raise NotImplementedError("Pendiente SPK-MELI-1 (credenciales de la app ML)")
+    datos = {
+        "grant_type": "refresh_token",
+        "client_id": settings.ML_APP_ID,
+        "client_secret": settings.ML_APP_SECRET,
+        "refresh_token": refresh_token,
+    }
+    respuesta = requests.post(f"{BASE_URL}/oauth/token", data=datos, timeout=15)
+    respuesta.raise_for_status()
+    return respuesta.json()
 
 
 def obtener_usuario(access_token, user_id):

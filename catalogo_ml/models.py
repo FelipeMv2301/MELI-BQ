@@ -70,3 +70,25 @@ class MLItemMap(models.Model):
 
     def __str__(self):
         return f"{self.sku} -> {self.ml_item_id}"
+
+
+class MLToken(models.Model):
+    """
+    Token OAuth2 de la app de Mercado Libre (HU-CM0.2) — una sola fila, siempre la más reciente
+    (una app, un seller, no hace falta múltiples filas). Se reemplaza entera en cada
+    login/refresh, nunca se edita a mano.
+    """
+
+    access_token = models.CharField(max_length=200)
+    refresh_token = models.CharField(max_length=200)
+    expires_at = models.DateTimeField()
+    ml_user_id = models.BigIntegerField()
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Token de Mercado Libre"
+        verbose_name_plural = "Token de Mercado Libre"
+
+    def __str__(self):
+        return f"ML user {self.ml_user_id} (actualizado {self.updated_at:%Y-%m-%d %H:%M})"

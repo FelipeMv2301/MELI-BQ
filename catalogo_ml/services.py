@@ -3,11 +3,20 @@ Reglas de negocio del Módulo 1 — la vista solo orquesta y presenta (mismo cri
 que gestorBQ: pedidos/services.py).
 """
 
-from integraciones import stockservice_client
+from datetime import timedelta
 
-from .models import MLItemMap, SkuSyncConfig
+from django.utils import timezone
+
+from integraciones import ml_client, stockservice_client
+
+from .models import MLItemMap, MLToken, SkuSyncConfig
 
 PAGE_SIZE = 50
+
+# Margen antes de que expire (ML da 6hs) para refrescar de forma proactiva — evita que dos
+# requests concurrentes intenten refrescar al mismo tiempo y uno pierda el refresh_token de un
+# solo uso del otro (ver Documentaciones/MercadoLibre/autenticacion.md).
+_MARGEN_REFRESH = timedelta(minutes=10)
 
 # Bodegas "web" (mismo criterio que WEB_WAREHOUSES de Stock-Service, sap_stock.py) — el stock que
 # se muestra acá es el que hoy alimenta WooCommerce, no necesariamente el que se termine
@@ -55,3 +64,43 @@ def construir_fila_por_sku(sku):
     config = SkuSyncConfig.objects.filter(sku=sku).first()
     mapa = MLItemMap.objects.filter(sku=sku).first()
     return construir_fila_catalogo(item, config, mapa)
+
+
+class TokenMLNoConfigurado(Exception):
+    """No hay ningún MLToken guardado todavía — falta completar el login con Mercado Libre."""
+
+
+def guardar_token_ml(datos_token):
+    """
+    HU-CM0.2 — persiste el resultado de ml_client.intercambiar_code_por_token/refrescar_token.
+    Reemplaza la fila anterior entera: una sola fila siempre, una app = un seller.
+    """
+    MLToken.objects.all().delete()
+    return MLToken.objects.create(
+        access_token=datos_token["access_token"],
+        refresh_token=datos_token["refresh_token"],
+        expires_at=timezone.now() + timedelta(seconds=datos_token["expires_in"]),
+        ml_user_id=datos_token["user_id"],
+    )
+
+
+def hay_token_ml():
+    return MLToken.objects.exists()
+
+
+def obtener_token_valido():
+    """
+    Devuelve un access_token vigente, refrescando proactivamente si está por vencer dentro de
+    _MARGEN_REFRESH. Refrescar ANTES de que ML lo rechace evita el escenario de dos requests
+    concurrentes peleándose por el mismo refresh_token de un solo uso.
+    """
+    token = MLToken.objects.first()
+    if token is None:
+        raise TokenMLNoConfigurado("Todavía no se hizo login con Mercado Libre (HU-CM0.2).")
+
+    if timezone.now() < token.expires_at - _MARGEN_REFRESH:
+        return token.access_token
+
+    datos = ml_client.refrescar_token(token.refresh_token)
+    guardar_token_ml(datos)
+    return datos["access_token"]

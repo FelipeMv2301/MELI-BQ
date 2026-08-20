@@ -7,11 +7,16 @@ from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase, override_settings
 
-from integraciones import stockservice_client
+from integraciones import ml_client, stockservice_client
 
 _SETTINGS_TEST = {
     "STOCKSERVICE_BASE_URL": "https://stock-sap-bq-production.up.railway.app",
     "STOCKSERVICE_API_KEY": "clave-de-prueba",
+}
+
+_ML_SETTINGS_TEST = {
+    "ML_APP_ID": "123456",
+    "ML_APP_SECRET": "secreto-de-prueba",
 }
 
 
@@ -77,3 +82,69 @@ class ObtenerCatalogoTests(SimpleTestCase):
             get_mock.return_value = _respuesta_mock(payload)
             resultado = stockservice_client.obtener_catalogo(search="xileno")
         self.assertEqual(resultado, payload)
+
+
+@override_settings(**_ML_SETTINGS_TEST)
+class ConstruirUrlAutorizacionTests(SimpleTestCase):
+    def test_incluye_client_id_redirect_uri_y_state(self):
+        url = ml_client.construir_url_autorizacion("https://meli-dev.bioquimica.cl/catalogo/ml/callback/", "abc123")
+
+        self.assertTrue(url.startswith("https://auth.mercadolibre.cl/authorization?"))
+        self.assertIn("client_id=123456", url)
+        self.assertIn("redirect_uri=https://meli-dev.bioquimica.cl/catalogo/ml/callback/", url)
+        self.assertIn("state=abc123", url)
+        self.assertIn("response_type=code", url)
+
+
+@override_settings(**_ML_SETTINGS_TEST)
+class IntercambiarCodePorTokenTests(SimpleTestCase):
+    @patch("integraciones.ml_client.requests.post")
+    def test_manda_grant_type_authorization_code_con_las_credenciales(self, post_mock):
+        post_mock.return_value = _respuesta_mock({
+            "access_token": "APP_USR-abc", "refresh_token": "TG-xyz",
+            "expires_in": 10800, "user_id": 999,
+        })
+
+        ml_client.intercambiar_code_por_token("EL_CODE", "https://meli-dev.bioquimica.cl/catalogo/ml/callback/")
+
+        datos_enviados = post_mock.call_args.kwargs["data"]
+        self.assertEqual(datos_enviados["grant_type"], "authorization_code")
+        self.assertEqual(datos_enviados["client_id"], "123456")
+        self.assertEqual(datos_enviados["client_secret"], "secreto-de-prueba")
+        self.assertEqual(datos_enviados["code"], "EL_CODE")
+        self.assertEqual(datos_enviados["redirect_uri"], "https://meli-dev.bioquimica.cl/catalogo/ml/callback/")
+        self.assertNotIn("code_verifier", datos_enviados)
+
+    @patch("integraciones.ml_client.requests.post")
+    def test_incluye_code_verifier_si_se_usa_pkce(self, post_mock):
+        post_mock.return_value = _respuesta_mock({"access_token": "x", "refresh_token": "y", "expires_in": 1, "user_id": 1})
+
+        ml_client.intercambiar_code_por_token("EL_CODE", "https://x/callback/", code_verifier="verificador")
+
+        self.assertEqual(post_mock.call_args.kwargs["data"]["code_verifier"], "verificador")
+
+    @patch("integraciones.ml_client.requests.post")
+    def test_devuelve_el_json_de_la_respuesta(self, post_mock):
+        payload = {"access_token": "APP_USR-abc", "refresh_token": "TG-xyz", "expires_in": 10800, "user_id": 999}
+        post_mock.return_value = _respuesta_mock(payload)
+
+        resultado = ml_client.intercambiar_code_por_token("EL_CODE", "https://x/callback/")
+
+        self.assertEqual(resultado, payload)
+
+
+@override_settings(**_ML_SETTINGS_TEST)
+class RefrescarTokenTests(SimpleTestCase):
+    @patch("integraciones.ml_client.requests.post")
+    def test_manda_grant_type_refresh_token(self, post_mock):
+        post_mock.return_value = _respuesta_mock({
+            "access_token": "APP_USR-nuevo", "refresh_token": "TG-nuevo",
+            "expires_in": 10800, "user_id": 999,
+        })
+
+        ml_client.refrescar_token("TG-viejo")
+
+        datos_enviados = post_mock.call_args.kwargs["data"]
+        self.assertEqual(datos_enviados["grant_type"], "refresh_token")
+        self.assertEqual(datos_enviados["refresh_token"], "TG-viejo")
+        self.assertEqual(datos_enviados["client_id"], "123456")

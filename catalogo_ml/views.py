@@ -1,11 +1,14 @@
 import math
+import secrets
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest, HttpResponseNotFound
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from integraciones import stockservice_client
+from integraciones import ml_client, stockservice_client
 
 from . import services
 from .models import SkuSyncConfig
@@ -61,7 +64,51 @@ def index(request):
         return render(request, "catalogo_ml/_tabla.html", contexto)
 
     contexto["acciones_masivas"] = _ACCIONES_MASIVAS
+    contexto["hay_token_ml"] = services.hay_token_ml()
     return render(request, "catalogo_ml/index.html", contexto)
+
+
+@login_required
+def ml_login(request):
+    """HU-CM0.2 — arranca el flujo OAuth: redirige al vendedor a la pantalla de autorización de ML."""
+    state = secrets.token_urlsafe(24)
+    request.session["ml_oauth_state"] = state
+    redirect_uri = request.build_absolute_uri(reverse("catalogo_ml:ml_callback"))
+    return redirect(ml_client.construir_url_autorizacion(redirect_uri, state))
+
+
+@login_required
+def ml_callback(request):
+    """HU-CM0.2 — recibe el code de ML, lo canjea por access_token/refresh_token y los guarda."""
+    error = request.GET.get("error")
+    if error:
+        messages.error(request, f"Mercado Libre rechazó la autorización: {error}")
+        return redirect("catalogo_ml:index")
+
+    state_recibido = request.GET.get("state")
+    state_esperado = request.session.pop("ml_oauth_state", None)
+    if not state_esperado or state_recibido != state_esperado:
+        messages.error(
+            request,
+            "El login con Mercado Libre no se pudo validar (state inválido) — intentá de nuevo.",
+        )
+        return redirect("catalogo_ml:index")
+
+    code = request.GET.get("code")
+    if not code:
+        messages.error(request, "Mercado Libre no envió el código de autorización.")
+        return redirect("catalogo_ml:index")
+
+    redirect_uri = request.build_absolute_uri(reverse("catalogo_ml:ml_callback"))
+    try:
+        datos = ml_client.intercambiar_code_por_token(code, redirect_uri)
+    except Exception as exc:
+        messages.error(request, f"No se pudo canjear el código por un token: {exc}")
+        return redirect("catalogo_ml:index")
+
+    services.guardar_token_ml(datos)
+    messages.success(request, "Cuenta de Mercado Libre conectada correctamente.")
+    return redirect("catalogo_ml:index")
 
 
 @login_required
