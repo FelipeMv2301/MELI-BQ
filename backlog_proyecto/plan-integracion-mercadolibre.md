@@ -244,14 +244,48 @@ SPK-MELI-8 al mismo tiempo en vez de parchar con un túnel (ngrok) temporal.
   HTTPS real para probar el login de ML; Postgres se evalúa cuando haya uso real. Evita tocar
   `pg_hba.conf`/`ufw` del Postgres compartido por ahora.
 - **Repo:** `https://github.com/FelipeMv2301/MELI-BQ.git`.
-- **Puerto:** `8004` (gestor usa 8002, gestor-test 8003 — siguiente libre).
-- **Auto-deploy:** GitHub Actions con runner self-hosted, mismo mecanismo que gestorBQ — requiere un
-  runner registrado específicamente para este repo (el token de registro lo genera Felipe desde
-  GitHub, expira rápido, no se puede dejar fijo acá).
+- **Puerto:** `8005` (8002 gestor, 8003 gestor-test, 8004 resultó estar tomado por otro proyecto no
+  documentado hasta ahora, `grafico_bq` — primer puerto libre real confirmado contra el server).
+- **Auto-deploy:** GitHub Actions con runner self-hosted, instalado y corriendo como servicio
+  systemd bajo el usuario `bioquimicacl` (no se creó un usuario dedicado tipo `gestorbq` — decisión
+  de alcance para este primer pase, se puede migrar después si hace falta más aislamiento).
 
 **Diferencia clave vs. el runbook de gestorBQ (que usa Postgres):** sin `extra_hosts:
 host.docker.internal` en el `docker-compose.yml` — no hace falta, SQLite no vive en el host, vive en
 el propio contenedor (con volumen bind-mount para persistir entre rebuilds).
+
+**✅ Ejecutado end-to-end (2026-08-20):**
+- Runner registrado y activo (`actions.runner.FelipeMv2301-MELI-BQ.meli-bq-runner.service`).
+- Gotcha real encontrado (no estaba en el runbook de gestorBQ porque ahí sí se creó un usuario
+  dedicado en el grupo `docker` desde el principio): el primer deploy automático falló en 12s —
+  `bioquimicacl` no estaba en el grupo `docker`. Se agregó (`usermod -aG docker`) y se reinició el
+  servicio del runner para que tomara el grupo nuevo.
+- `.env` de este ambiente subido al server (`/home/bioquimicacl/meli-bq-dev/.env`, `chmod 600`,
+  nunca versionado) — `DEBUG=False`, `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS=meli-dev.bioquimica.cl`,
+  `ML_REDIRECT_URI=https://meli-dev.bioquimica.cl/catalogo/ml/callback/`, `SECRET_KEY` propio
+  (nunca el de dev local).
+- Build + migrate + smoke test manual: `curl` con `Host: meli-dev.bioquimica.cl` contra el
+  contenedor → 302 a `/accounts/login/`, como corresponde (un `curl` directo a la IP sin ese header
+  da 400 `DisallowedHost` — comportamiento esperado de Django, no un bug).
+- Bloque de Caddy agregado a `/home/bioquimicacl/mirastock/Caddyfile` (mismo Caddyfile compartido
+  que ya usan mirastock/gestor/gestor-test/graficos) — `reverse_proxy host.docker.internal:8005`
+  (no `127.0.0.1`, ese es justo el patrón real ya usado ahí), `header_up X-Forwarded-Proto https`
+  fijo (el túnel entrega siempre HTTP interno). `caddy reload` aplicado sin bajar el contenedor.
+- Regla de `ingress` agregada a `/home/bioquimicacl/mirastock/cloudflared/config.yml` (túnel
+  `3ab9328f-e315-42c0-974b-1519a2aa01ff`, mismo que ya usan los demás hostnames) + `docker compose
+  restart cloudflared` — reconectado limpio.
+- Verificado enrutamiento completo de punta a punta DENTRO del server (`docker exec
+  mirastock-caddy-1 wget --header='Host: meli-dev.bioquimica.cl' ...` → 302 → sigue redirect → 200
+  la pantalla de login) — todo lo que no depende de DNS público ya funciona.
+
+**Pendiente — acción de Felipe, no hay más código/SSH que hacer para esto:**
+1. Cloudflare dashboard → DNS → registro **CNAME**, nombre `meli-dev`, target
+   `3ab9328f-e315-42c0-974b-1519a2aa01ff.cfargotunnel.com` (mismo túnel, solo falta el DNS).
+2. Una vez propagado el DNS: registrar `https://meli-dev.bioquimica.cl/catalogo/ml/callback/` como
+   redirect URI en la app de Mercado Libre (developers.mercadolibre.cl → Mis aplicaciones) — el
+   `http://127.0.0.1` nunca se pudo guardar (ML exige HTTPS), así que este es el primero real.
+3. Agregar también `https://meli-dev.bioquimica.cl/accounts/google/login/callback/` a los redirect
+   URIs autorizados en Google Cloud Console (se suma a la lista, no reemplaza el de `127.0.0.1`).
 
 ## 13. Ver también
 

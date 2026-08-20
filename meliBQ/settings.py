@@ -200,3 +200,27 @@ FACELE_URL = os.getenv("FACELE_URL", "")
 FACELE_USER = os.getenv("FACELE_USER", "")
 FACELE_PASSWORD = os.getenv("FACELE_PASSWORD", "")
 FACELE_TAXID = os.getenv("FACELE_TAXID", "")
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+# Por defecto, con DEBUG=False, Django solo intenta mandar los errores 500 por mail (mail_admins)
+# y no imprime nada a consola — en Docker eso significa que `docker compose logs` no muestra el
+# traceback real de un 500 (encontrado 2026-08-20 diagnosticando el primer 500 en meli-dev, hubo que
+# reproducirlo a mano en el shell). Con esto, todo error queda en los logs del contenedor siempre.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
