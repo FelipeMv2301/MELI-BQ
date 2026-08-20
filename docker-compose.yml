@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    env_file: .env
+    volumes:
+      - ./db.sqlite3:/app/db.sqlite3
+    ports:
+      # Sin prefijo 127.0.0.1: el Caddy que hace de reverse proxy corre en el contenedor de
+      # mirastock y llega acá vía host.docker.internal — mismo hallazgo que gestorBQ (ver su
+      # runbook de despliegue). ufw sigue bloqueando todo lo no permitido explícitamente.
+      - "${APP_PORT}:8000"
+    restart: unless-stopped

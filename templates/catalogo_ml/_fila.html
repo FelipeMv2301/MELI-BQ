@@ -1,0 +1,22 @@
+<tr id="fila-{{ fila.sku }}" class="border-b border-slate-100">
+  <td class="py-2 pr-2">
+    <input type="checkbox" name="skus" value="{{ fila.sku }}">
+  </td>
+  <td class="py-2 pr-4 font-mono">{{ fila.sku }}</td>
+  <td class="py-2 pr-4">{{ fila.nombre }}</td>
+  <td class="py-2 pr-4 text-right">{{ fila.stock_web }}</td>
+  <td class="py-2 pr-4 text-right">{% if fila.precio_neto %}${{ fila.precio_neto }}{% else %}—{% endif %}</td>
+  <td class="py-2 pr-4 text-center">
+    <input type="checkbox" {% if fila.sync_stock %}checked{% endif %}
+           hx-post="{% url 'catalogo_ml:toggle_sync' fila.sku %}"
+           hx-vals='{"campo": "sync_stock"}'
+           hx-target="#fila-{{ fila.sku }}" hx-swap="outerHTML">
+  </td>
+  <td class="py-2 pr-4 text-center">
+    <input type="checkbox" {% if fila.sync_price %}checked{% endif %}
+           hx-post="{% url 'catalogo_ml:toggle_sync' fila.sku %}"
+           hx-vals='{"campo": "sync_price"}'
+           hx-target="#fila-{{ fila.sku }}" hx-swap="outerHTML">
+  </td>
+  <td class="py-2 pr-4">{{ fila.estado }}</td>
+</tr>

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Catálogo — MELI-BQ{% endblock %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-4">Selección y sync de catálogo hacia Mercado Libre</h1>
+
+<input
+  type="text"
+  name="q"
+  value="{{ q }}"
+  placeholder="Buscar por SKU o nombre..."
+  class="border border-slate-300 rounded px-3 py-2 mb-4 w-80"
+  hx-get="{% url 'catalogo_ml:index' %}"
+  hx-target="#tabla-catalogo"
+  hx-swap="outerHTML"
+  hx-trigger="keyup changed delay:500ms, search"
+  hx-include="this"
+>
+
+<div class="flex gap-2 mb-3 text-sm">
+  <span class="text-slate-500 self-center">Con los seleccionados:</span>
+  {% for etiqueta, campo, valor in acciones_masivas %}
+  <button type="button" class="accion-masiva px-2 py-1 border border-slate-200 rounded hover:bg-slate-50"
+          hx-post="{% url 'catalogo_ml:toggle_masivo' %}"
+          hx-include="[name='skus']:checked, [name='q'], [name='pagina']"
+          hx-vals='{"campo": "{{ campo }}", "valor": "{{ valor }}"}'
+          hx-target="#tabla-catalogo" hx-swap="outerHTML"
+          hx-confirm="¿{{ etiqueta }} en los productos seleccionados?">
+    {{ etiqueta }}
+  </button>
+  {% endfor %}
+</div>
+
+{% include "catalogo_ml/_tabla.html" %}
+{% endblock %}

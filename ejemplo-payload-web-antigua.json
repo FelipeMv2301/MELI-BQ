@@ -1,0 +1,775 @@
+{
+  "id": 6492,
+  "name": "Tubo de Ensayo - Borosilicato - 18 x 180 mm",
+  "slug": "tubo-de-ensayo-borosilicato-18-x-180-mm",
+  "permalink": "https://bioquimica.cl/producto/tubo-de-ensayo-borosilicato-18-x-180-mm/",
+  "date_created": "2025-04-23T10:32:55",
+  "date_created_gmt": "2025-04-23T14:32:55",
+  "date_modified": "2026-08-20T11:24:41",
+  "date_modified_gmt": "2026-08-20T15:24:41",
+  "type": "simple",
+  "status": "publish",
+  "featured": false,
+  "catalog_visibility": "visible",
+  "description": "<h3>Descripción Técnica</h3>\n<table>\n<tbody>\n<tr>\n<td>Largo:</td>\n<td>180 mm</td>\n</tr>\n<tr>\n<td>Diametro:</td>\n<td>18 mm</td>\n</tr>\n</tbody>\n</table>\n<p>Compra mínima de 10 unidades</p>\n<p>Fabricado en vidrio borosilicato 3.3, con coeficiente de expansión térmica de (3,2 ± 0,1) × 10⁻⁶ /°C, certificado según ensayo de laboratorio del fabricante. Esto garantiza una alta resistencia al choque térmico, significativamente superior al vidrio soda.<br />\n<a href=\"https://jumpseller.s3.eu-west-1.amazonaws.com/store/bioquimica-cl1/assets/thermal%20expansion%20test%20report.pdf\" target=\"_blank\">Thermal expansion test report.pdf</a><br />\n</p>\n<h3>Usos Previstos</h3>\n<ul>\n<li>Realización de reacciones químicas a pequeña escala</li>\n<li>Cultivo y observación de muestras biológicas o químicas</li>\n</ul>\n<h3>Otros Usos Prácticos</h3>\n<ul>\n<li>Almacenamiento temporal de pequeñas cantidades de reactivos</li>\n<li>Prácticas educativas de química y biología</li>\n</ul>\n<p><em>*Imagen referencial</em></p>\n",
+  "short_description": "<p>Tubo de Ensayo &#8211; Borosilicato &#8211; 18 x 180 mm. Material de laboratorio para realización de reacciones químicas a pequeña escala.</p>\n",
+  "sku": "ML000111",
+  "price": "251",
+  "regular_price": "251",
+  "sale_price": "",
+  "date_on_sale_from": null,
+  "date_on_sale_from_gmt": null,
+  "date_on_sale_to": null,
+  "date_on_sale_to_gmt": null,
+  "on_sale": false,
+  "purchasable": true,
+  "total_sales": 2284,
+  "virtual": false,
+  "downloadable": false,
+  "downloads": [],
+  "download_limit": -1,
+  "download_expiry": -1,
+  "external_url": "",
+  "button_text": "",
+  "tax_status": "taxable",
+  "tax_class": "",
+  "manage_stock": true,
+  "stock_quantity": 13476,
+  "backorders": "no",
+  "backorders_allowed": false,
+  "backordered": false,
+  "low_stock_amount": null,
+  "sold_individually": false,
+  "weight": "0.03",
+  "dimensions": {
+    "length": "2",
+    "width": "2",
+    "height": "18"
+  },
+  "shipping_required": true,
+  "shipping_taxable": true,
+  "shipping_class": "",
+  "shipping_class_id": 0,
+  "reviews_allowed": false,
+  "average_rating": "0.00",
+  "rating_count": 0,
+  "upsell_ids": [],
+  "cross_sell_ids": [
+    7020,
+    6819,
+    7016,
+    6816
+  ],
+  "parent_id": 0,
+  "purchase_note": "",
+  "categories": [
+    {
+      "id": 30,
+      "name": "Material de Laboratorio",
+      "slug": "material-laboratorio"
+    },
+    {
+      "id": 265,
+      "name": "Tubos Placas y Gradillas",
+      "slug": "tubos-placas-gradillas"
+    }
+  ],
+  "brands": [],
+  "tags": [],
+  "images": [
+    {
+      "id": 6491,
+      "date_created": "2025-04-23T10:32:55",
+      "date_created_gmt": "2025-04-23T14:32:55",
+      "date_modified": "2025-04-23T10:32:55",
+      "date_modified_gmt": "2025-04-23T14:32:55",
+      "src": "https://bioquimica.cl/wp-content/uploads/2025/04/ML000168.jpg",
+      "name": "ML000168.jpg",
+      "alt": "",
+      "srcset": "https://bioquimica.cl/wp-content/uploads/2025/04/ML000168.jpg 752w, https://bioquimica.cl/wp-content/uploads/2025/04/ML000168-300x300.jpg 300w, https://bioquimica.cl/wp-content/uploads/2025/04/ML000168-150x150.jpg 150w, https://bioquimica.cl/wp-content/uploads/2025/04/ML000168-600x599.jpg 600w, https://bioquimica.cl/wp-content/uploads/2025/04/ML000168-100x100.jpg 100w",
+      "sizes": "(max-width: 752px) 100vw, 752px",
+      "thumbnail": "https://bioquimica.cl/wp-content/uploads/2025/04/ML000168-300x300.jpg"
+    }
+  ],
+  "attributes": [],
+  "default_attributes": [],
+  "variations": [],
+  "grouped_products": [],
+  "menu_order": 1163,
+  "price_html": "<span class=\"woocommerce-Price-amount amount\"><bdi><span class=\"woocommerce-Price-currencySymbol\">$</span>251</bdi></span>",
+  "related_ids": [
+    6494,
+    6512,
+    6522,
+    6538,
+    6540
+  ],
+  "meta_data": [
+    {
+      "id": 383410,
+      "key": "store_stock",
+      "value": ""
+    },
+    {
+      "id": 476894,
+      "key": "store_stocks",
+      "value": "197"
+    },
+    {
+      "id": 478949,
+      "key": "sync_warehouse",
+      "value": "1"
+    },
+    {
+      "id": 478950,
+      "key": "_sync_warehouse",
+      "value": "field_679cb597ac259"
+    },
+    {
+      "id": 484639,
+      "key": "_last_change_time",
+      "value": "1764706988"
+    },
+    {
+      "id": 492761,
+      "key": "rank_math_internal_links_processed",
+      "value": "1"
+    },
+    {
+      "id": 519261,
+      "key": "rank_math_analytic_object_id",
+      "value": "1052"
+    },
+    {
+      "id": 552354,
+      "key": "_store_warehouses",
+      "value": "field_6792881359b00"
+    },
+    {
+      "id": 552355,
+      "key": "_store_stocks",
+      "value": ""
+    },
+    {
+      "id": 552356,
+      "key": "site-sidebar-layout",
+      "value": ""
+    },
+    {
+      "id": 552357,
+      "key": "ast-site-content-layout",
+      "value": ""
+    },
+    {
+      "id": 552358,
+      "key": "site-content-style",
+      "value": ""
+    },
+    {
+      "id": 552359,
+      "key": "site-sidebar-style",
+      "value": ""
+    },
+    {
+      "id": 552360,
+      "key": "theme-transparent-header-meta",
+      "value": ""
+    },
+    {
+      "id": 552361,
+      "key": "stick-header-meta",
+      "value": ""
+    },
+    {
+      "id": 552362,
+      "key": "astra-migrate-meta-layouts",
+      "value": ""
+    },
+    {
+      "id": 552363,
+      "key": "sib_push_meta_box_present",
+      "value": ""
+    },
+    {
+      "id": 552364,
+      "key": "sib_push_send_notification",
+      "value": ""
+    },
+    {
+      "id": 552365,
+      "key": "sib_push_target_segment_ids",
+      "value": ""
+    },
+    {
+      "id": 552366,
+      "key": "rank_math_seo_score",
+      "value": ""
+    },
+    {
+      "id": 552367,
+      "key": "_wp_page_template",
+      "value": ""
+    },
+    {
+      "id": 552368,
+      "key": "rank_math_primary_product_brand",
+      "value": ""
+    },
+    {
+      "id": 552369,
+      "key": "rank_math_primary_product_cat",
+      "value": ""
+    },
+    {
+      "id": 552370,
+      "key": "rank_math_primary_fb_product_set",
+      "value": ""
+    },
+    {
+      "id": 552371,
+      "key": "_oembed_19b84f51102eded6302a3e5c0dbaa496",
+      "value": ""
+    },
+    {
+      "id": 552372,
+      "key": "wpced_enable",
+      "value": ""
+    },
+    {
+      "id": 552373,
+      "key": "sale_mode",
+      "value": ""
+    },
+    {
+      "id": 552374,
+      "key": "_sale_mode",
+      "value": ""
+    },
+    {
+      "id": 552375,
+      "key": "cwg_total_subscribers",
+      "value": ""
+    },
+    {
+      "id": 552376,
+      "key": "berocket_post_order",
+      "value": ""
+    },
+    {
+      "id": 552377,
+      "key": "rwpp_sortorder_126",
+      "value": ""
+    },
+    {
+      "id": 552380,
+      "key": "rwpp_sortorder_75",
+      "value": ""
+    },
+    {
+      "id": 552381,
+      "key": "rwpp_sortorder_74",
+      "value": ""
+    },
+    {
+      "id": 552382,
+      "key": "rwpp_sortorder_234",
+      "value": ""
+    },
+    {
+      "id": 552383,
+      "key": "rwpp_sortorder_27",
+      "value": ""
+    },
+    {
+      "id": 552384,
+      "key": "rwpp_sortorder_35",
+      "value": ""
+    },
+    {
+      "id": 552385,
+      "key": "rwpp_sortorder_201",
+      "value": ""
+    },
+    {
+      "id": 552386,
+      "key": "rwpp_sortorder_34",
+      "value": ""
+    },
+    {
+      "id": 552387,
+      "key": "rwpp_sortorder_44",
+      "value": ""
+    },
+    {
+      "id": 552388,
+      "key": "rank_math_focus_keyword",
+      "value": ""
+    },
+    {
+      "id": 552389,
+      "key": "rwpp_sortorder_31",
+      "value": ""
+    },
+    {
+      "id": 552390,
+      "key": "rwpp_sortorder_47",
+      "value": ""
+    },
+    {
+      "id": 552391,
+      "key": "_store_stock",
+      "value": ""
+    },
+    {
+      "id": 552392,
+      "key": "rwpp_sortorder_30",
+      "value": ""
+    },
+    {
+      "id": 552393,
+      "key": "store_warehouses",
+      "value": [
+        "15",
+        "11"
+      ]
+    },
+    {
+      "id": 552394,
+      "key": "_wc_facebook_sync_enabled",
+      "value": ""
+    },
+    {
+      "id": 552395,
+      "key": "fb_visibility",
+      "value": ""
+    },
+    {
+      "id": 552396,
+      "key": "_oembed_1998e7a19c80888344f2d54be337cbe6",
+      "value": ""
+    },
+    {
+      "id": 552397,
+      "key": "_oembed_time_1998e7a19c80888344f2d54be337cbe6",
+      "value": ""
+    },
+    {
+      "id": 552398,
+      "key": "_oembed_4ad26ffcd02e431cfe8d6dcf9798a34f",
+      "value": ""
+    },
+    {
+      "id": 552399,
+      "key": "_oembed_time_4ad26ffcd02e431cfe8d6dcf9798a34f",
+      "value": ""
+    },
+    {
+      "id": 552400,
+      "key": "_oembed_9216f6f34d622d14ce7128e89771caf5",
+      "value": ""
+    },
+    {
+      "id": 552401,
+      "key": "_oembed_time_9216f6f34d622d14ce7128e89771caf5",
+      "value": ""
+    },
+    {
+      "id": 552402,
+      "key": "_oembed_c1e7ba0331c30d62720b21eb2bab19e2",
+      "value": ""
+    },
+    {
+      "id": 552403,
+      "key": "_oembed_time_c1e7ba0331c30d62720b21eb2bab19e2",
+      "value": ""
+    },
+    {
+      "id": 552404,
+      "key": "_oembed_da2587dd53187207cd14ceb240b4fdd7",
+      "value": ""
+    },
+    {
+      "id": 552405,
+      "key": "_oembed_time_da2587dd53187207cd14ceb240b4fdd7",
+      "value": ""
+    },
+    {
+      "id": 552406,
+      "key": "rwpp_sortorder_36",
+      "value": ""
+    },
+    {
+      "id": 552407,
+      "key": "rwpp_sortorder_167",
+      "value": ""
+    },
+    {
+      "id": 552408,
+      "key": "rwpp_sortorder_37",
+      "value": ""
+    },
+    {
+      "id": 552409,
+      "key": "rwpp_sortorder_216",
+      "value": ""
+    },
+    {
+      "id": 552410,
+      "key": "rwpp_sortorder_73",
+      "value": ""
+    },
+    {
+      "id": 552411,
+      "key": "rank_math_description",
+      "value": ""
+    },
+    {
+      "id": 552412,
+      "key": "rwpp_sortorder_107",
+      "value": ""
+    },
+    {
+      "id": 552413,
+      "key": "rwpp_sortorder_217",
+      "value": ""
+    },
+    {
+      "id": 552414,
+      "key": "_wp_old_date",
+      "value": ""
+    },
+    {
+      "id": 616848,
+      "key": "stock_sync",
+      "value": "1"
+    },
+    {
+      "id": 616849,
+      "key": "_stock_sync",
+      "value": "field_679236527e8ec"
+    },
+    {
+      "id": 616850,
+      "key": "price_sync",
+      "value": "1"
+    },
+    {
+      "id": 616851,
+      "key": "_price_sync",
+      "value": "field_6792870edb58c"
+    },
+    {
+      "id": 616852,
+      "key": "rwpp_sortorder_206",
+      "value": ""
+    },
+    {
+      "id": 616853,
+      "key": "rwpp_sortorder_56",
+      "value": ""
+    },
+    {
+      "id": 616854,
+      "key": "rwpp_sortorder_215",
+      "value": ""
+    },
+    {
+      "id": 616855,
+      "key": "rwpp_sortorder_59",
+      "value": ""
+    },
+    {
+      "id": 616856,
+      "key": "rwpp_sortorder_70",
+      "value": ""
+    },
+    {
+      "id": 616857,
+      "key": "rwpp_sortorder_90",
+      "value": ""
+    },
+    {
+      "id": 616858,
+      "key": "rwpp_sortorder_93",
+      "value": ""
+    },
+    {
+      "id": 616859,
+      "key": "rwpp_sortorder_96",
+      "value": ""
+    },
+    {
+      "id": 616860,
+      "key": "rwpp_sortorder_199",
+      "value": ""
+    },
+    {
+      "id": 616861,
+      "key": "rwpp_sortorder_147",
+      "value": ""
+    },
+    {
+      "id": 616862,
+      "key": "rwpp_sortorder_150",
+      "value": ""
+    },
+    {
+      "id": 616863,
+      "key": "rwpp_sortorder_164",
+      "value": ""
+    },
+    {
+      "id": 616864,
+      "key": "rwpp_sortorder_151",
+      "value": ""
+    },
+    {
+      "id": 616865,
+      "key": "rwpp_sortorder_133",
+      "value": ""
+    },
+    {
+      "id": 616866,
+      "key": "rwpp_sortorder_148",
+      "value": ""
+    },
+    {
+      "id": 616867,
+      "key": "rwpp_sortorder_152",
+      "value": ""
+    },
+    {
+      "id": 616868,
+      "key": "rwpp_sortorder_153",
+      "value": ""
+    },
+    {
+      "id": 616869,
+      "key": "rwpp_sortorder_134",
+      "value": ""
+    },
+    {
+      "id": 616870,
+      "key": "rwpp_sortorder_145",
+      "value": ""
+    },
+    {
+      "id": 616871,
+      "key": "rwpp_sortorder_146",
+      "value": ""
+    },
+    {
+      "id": 616872,
+      "key": "rwpp_sortorder_159",
+      "value": ""
+    },
+    {
+      "id": 616873,
+      "key": "rwpp_sortorder_161",
+      "value": ""
+    },
+    {
+      "id": 616874,
+      "key": "rwpp_sortorder_38",
+      "value": ""
+    },
+    {
+      "id": 616875,
+      "key": "rwpp_sortorder_203",
+      "value": ""
+    },
+    {
+      "id": 616876,
+      "key": "rwpp_sortorder_174",
+      "value": ""
+    },
+    {
+      "id": 616877,
+      "key": "rwpp_sortorder_168",
+      "value": ""
+    },
+    {
+      "id": 616878,
+      "key": "rwpp_sortorder_177",
+      "value": ""
+    },
+    {
+      "id": 616879,
+      "key": "rwpp_sortorder_40",
+      "value": ""
+    },
+    {
+      "id": 616880,
+      "key": "rwpp_sortorder_200",
+      "value": ""
+    },
+    {
+      "id": 616881,
+      "key": "rwpp_sortorder_72",
+      "value": ""
+    },
+    {
+      "id": 616882,
+      "key": "rwpp_sortorder_29",
+      "value": ""
+    },
+    {
+      "id": 616883,
+      "key": "rwpp_sortorder_195",
+      "value": ""
+    },
+    {
+      "id": 616884,
+      "key": "rwpp_sortorder_46",
+      "value": ""
+    },
+    {
+      "id": 616885,
+      "key": "rwpp_sortorder_108",
+      "value": ""
+    },
+    {
+      "id": 616886,
+      "key": "rwpp_sortorder_42",
+      "value": ""
+    },
+    {
+      "id": 616887,
+      "key": "rwpp_sortorder_106",
+      "value": ""
+    },
+    {
+      "id": 616888,
+      "key": "rwpp_sortorder_78",
+      "value": ""
+    },
+    {
+      "id": 616889,
+      "key": "rwpp_sortorder_211",
+      "value": ""
+    },
+    {
+      "id": 616890,
+      "key": "rwpp_sortorder_212",
+      "value": ""
+    },
+    {
+      "id": 616891,
+      "key": "rwpp_sortorder_213",
+      "value": ""
+    },
+    {
+      "id": 616892,
+      "key": "rwpp_sortorder_209",
+      "value": ""
+    },
+    {
+      "id": 616893,
+      "key": "rwpp_sortorder_208",
+      "value": ""
+    },
+    {
+      "id": 616894,
+      "key": "rwpp_sortorder_155",
+      "value": ""
+    },
+    {
+      "id": 616895,
+      "key": "rwpp_sortorder_198",
+      "value": ""
+    },
+    {
+      "id": 616896,
+      "key": "rwpp_sortorder_156",
+      "value": ""
+    },
+    {
+      "id": 616897,
+      "key": "rwpp_sortorder_173",
+      "value": ""
+    },
+    {
+      "id": 616898,
+      "key": "rwpp_sortorder_160",
+      "value": ""
+    },
+    {
+      "id": 616899,
+      "key": "rwpp_sortorder_102",
+      "value": ""
+    },
+    {
+      "id": 616900,
+      "key": "rwpp_sortorder_162",
+      "value": ""
+    },
+    {
+      "id": 616901,
+      "key": "rwpp_sortorder_202",
+      "value": ""
+    },
+    {
+      "id": 616902,
+      "key": "rwpp_sortorder_39",
+      "value": ""
+    },
+    {
+      "id": 673447,
+      "key": "rwpp_sortorder_233",
+      "value": ""
+    },
+    {
+      "id": 673448,
+      "key": "rwpp_sortorder_45",
+      "value": ""
+    },
+    {
+      "id": 678510,
+      "key": "rwpp_sortorder_169",
+      "value": ""
+    },
+    {
+      "id": 776332,
+      "key": "rwpp_sortorder_154",
+      "value": "1163"
+    },
+    {
+      "id": 800222,
+      "key": "_elementor_page_assets",
+      "value": []
+    }
+  ],
+  "stock_status": "instock",
+  "has_options": false,
+  "post_password": "",
+  "global_unique_id": "",
+  "stock_sync": true,
+  "price_sync": true,
+  "store_warehouses": [
+    "15",
+    "11"
+  ],
+  "sync_warehouse": "1",
+  "store_stocks": "197",
+  "_links": {
+    "self": [
+      {
+        "href": "https://bioquimica.cl/wp-json/wc/v3/products/6492",
+        "targetHints": {
+          "allow": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://bioquimica.cl/wp-json/wc/v3/products"
+      }
+    ]
+  }
+}

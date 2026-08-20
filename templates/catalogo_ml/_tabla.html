@@ -1,0 +1,48 @@
+<div id="tabla-catalogo">
+  <input type="hidden" name="q" value="{{ q }}">
+  <input type="hidden" name="pagina" value="{{ pagina }}">
+
+  <table class="w-full text-sm border-collapse bg-white">
+    <thead>
+      <tr class="text-left border-b border-slate-200">
+        <th class="py-2 pr-2">
+          <input type="checkbox"
+                 onclick="document.querySelectorAll('#tabla-catalogo input[name=skus]').forEach(c => c.checked = this.checked)">
+        </th>
+        <th class="py-2 pr-4">SKU</th>
+        <th class="py-2 pr-4">Nombre</th>
+        <th class="py-2 pr-4 text-right">Stock web</th>
+        <th class="py-2 pr-4 text-right">Precio neto</th>
+        <th class="py-2 pr-4 text-center">Stock</th>
+        <th class="py-2 pr-4 text-center">Precio</th>
+        <th class="py-2 pr-4">Estado en ML</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for fila in filas %}
+        {% include "catalogo_ml/_fila.html" %}
+      {% empty %}
+        <tr><td colspan="8" class="py-4 text-center text-slate-400">Sin resultados</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="flex items-center justify-between mt-4 text-sm text-slate-500">
+    <span>{{ total }} producto{{ total|pluralize }}</span>
+    <div class="flex gap-2">
+      {% if pagina > 1 %}
+      <a href="?q={{ q|urlencode }}&pagina={{ pagina|add:"-1" }}"
+         hx-get="?q={{ q|urlencode }}&pagina={{ pagina|add:"-1" }}"
+         hx-target="#tabla-catalogo" hx-swap="outerHTML"
+         class="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50">Anterior</a>
+      {% endif %}
+      <span>Página {{ pagina }} de {{ total_paginas }}</span>
+      {% if pagina < total_paginas %}
+      <a href="?q={{ q|urlencode }}&pagina={{ pagina|add:"1" }}"
+         hx-get="?q={{ q|urlencode }}&pagina={{ pagina|add:"1" }}"
+         hx-target="#tabla-catalogo" hx-swap="outerHTML"
+         class="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50">Siguiente</a>
+      {% endif %}
+    </div>
+  </div>
+</div>

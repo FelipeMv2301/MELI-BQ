@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+db.sqlite3
+staticfiles/
+static/css/app.css
+tailwindcss.exe
+tailwindcss
+.pytest_cache/
+.ruff_cache/
+*.log

@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}MELI-BQ{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script src="{% static 'vendor/htmx-2.0.4.min.js' %}" defer></script>
+  <script>
+    // Django exige el header X-CSRFToken en cada POST — htmx no lo manda solo, hay que leerlo
+    // de la cookie que ya pone CsrfViewMiddleware (mismo patrón documentado por htmx+Django).
+    document.addEventListener('htmx:configRequest', function (event) {
+      var match = document.cookie.match('(^|;)\\s*csrftoken\\s*=\\s*([^;]+)');
+      if (match) event.detail.headers['X-CSRFToken'] = match.pop();
+    });
+
+    // HU-CM1.3 — solo pide confirmación si la acción masiva afecta a más de 50 productos
+    // (hx-confirm por sí solo confirmaría siempre, sin importar cuántos estén seleccionados).
+    document.addEventListener('htmx:confirm', function (event) {
+      if (!event.detail.elt.classList.contains('accion-masiva')) return;
+      var seleccionados = document.querySelectorAll("input[name='skus']:checked").length;
+      if (seleccionados <= 50) return;
+      event.preventDefault();
+      if (confirm('¿Aplicar a los ' + seleccionados + ' productos seleccionados?')) {
+        event.detail.issueRequest();
+      }
+    });
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-6">
+    <span class="font-semibold">MELI-BQ</span>
+    <nav class="flex gap-4 text-sm">
+      <a href="{% url 'catalogo_ml:index' %}" class="hover:text-blue-600">Catálogo</a>
+      <a href="{% url 'facturacion_ml:index' %}" class="hover:text-blue-600">Facturación</a>
+    </nav>
+    <div class="ml-auto text-sm text-slate-500">
+      {% if user.is_authenticated %}
+        {{ user.email }} · <a href="{% url 'account_logout' %}" class="hover:text-blue-600">Salir</a>
+      {% else %}
+        <a href="{% url 'account_login' %}" class="hover:text-blue-600">Ingresar con Google</a>
+      {% endif %}
+    </div>
+  </header>
+  <main class="p-6">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
