@@ -111,8 +111,9 @@ proyecto):**
   `Documentaciones/MercadoLibre/descripcion-de-productos.md` y HU-CM2.4 del backlog de Módulo 1).
 
 **Regla de precio:** ajuste por porcentaje sobre el precio SAP (bruto, con impuesto ya calculado por
-Stock-Service) antes de mandarlo a ML. Configuración exacta (global / por categoría / por producto)
-— **SPK-MELI-7**, pendiente.
+Stock-Service) antes de mandarlo a ML. Configuración: **SPK-MELI-7 resuelto 2026-08-21** — un solo
+% global, editable desde la propia UI del catálogo (`ConfiguracionSyncML`, fila única), no por
+categoría ni por producto. Implementado en `services.py::calcular_precio_ml`/`guardar_porcentaje_ajuste`.
 
 ## 5. Módulo 2 — Flujo de facturación (mismo patrón que `BQ-Integraciones`)
 
@@ -201,7 +202,7 @@ send_email()         — al comprador, con el PDF adjunto
 | SPK-MELI-4 | ~~Credenciales/acceso a la API REST de WooCommerce~~ | **RESUELTO 2026-08-20** — `WOO_URL`/`WOO_KEY`/`WOO_SECRET` en `.env` del proyecto. Confirmado contra un producto real: `images[].src`, `description`, `short_description`, `sku` (coincide con SAP). La descripción viene en HTML y necesita limpieza a texto plano (ver HU-CM2.4) — la API de ML no acepta HTML. |
 | SPK-MELI-5 | ~~¿DB directa o API REST de Stock-Service?~~ **RESUELTO 2026-08-20 — API REST.** Mismo patrón que ya usa `BQ-Integraciones` en producción (decisión D2 de su `plan.md`). La Postgres real de Stock-Service vive en DigitalOcean compartida con otro proyecto vía `DB_SCHEMA` — acceder directo ahí acopla MELI-BQ a un esquema interno no versionado. La API (`https://stock-sap-bq-production.up.railway.app`, dominio público, auth `X-API-Key` global) ya expone `GET /api/v1/stock/catalog` (paginado + búsqueda, exactamente lo que pide HU-CM1.1) y `GET /api/v1/stock/products/{sku}`. Implementado en `integraciones/stockservice_client.py::obtener_catalogo()`/`obtener_producto()`, con tests mockeados en `integraciones/tests.py`. Sin caché (Redis) todavía — BQ-Integraciones sí cachea; evaluar si hace falta cuando la grilla esté conectada de verdad. | — resuelto |
 | SPK-MELI-6 | Scheduler: APScheduler (patrón `gestorBQ`, sync en el mismo proceso Django) vs Celery (patrón Stock-Service/BQ-Integraciones, requiere Redis/worker aparte). Definir según dónde se despliega. | E0 de ambos módulos |
-| SPK-MELI-7 | Regla de ajuste de precio por porcentaje: ¿un solo % global, por categoría, o configurable por producto desde la misma UI de selección? | Módulo 1, `services.py::calcular_precio_ml` |
+| SPK-MELI-7 | ~~Regla de ajuste de precio por porcentaje~~ **RESUELTO 2026-08-21 — un solo % global, editable desde el frontend.** Decisión de Felipe: no por categoría ni por producto. `ConfiguracionSyncML` (fila única) + `services.py::calcular_precio_ml`/`guardar_porcentaje_ajuste`, form en `catalogo_ml/index.html`. | Módulo 1, `services.py::calcular_precio_ml` | — resuelto |
 | SPK-MELI-8 | ~~Despliegue~~ **RESUELTO 2026-08-20** — mismo servidor on-prem que `gestorBQ` (152.230.53.151 / LAN oficina), Docker + Caddy compartido con `mirastock` + túnel Cloudflare existente. Motivo inmediato: ML exige HTTPS en el `redirect_uri` incluso para probar en dev — necesitábamos una URL real ya. Ver sección 12. | — resuelto |
 
 ## 10. Integraciones externas — resumen de contratos

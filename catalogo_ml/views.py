@@ -1,5 +1,6 @@
 import math
 import secrets
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -65,6 +66,7 @@ def index(request):
 
     contexto["acciones_masivas"] = _ACCIONES_MASIVAS
     contexto["hay_token_ml"] = services.hay_token_ml()
+    contexto["porcentaje_ajuste"] = services.obtener_porcentaje_ajuste()
     return render(request, "catalogo_ml/index.html", contexto)
 
 
@@ -108,6 +110,29 @@ def ml_callback(request):
 
     services.guardar_token_ml(datos)
     messages.success(request, "Cuenta de Mercado Libre conectada correctamente.")
+    return redirect("catalogo_ml:index")
+
+
+@login_required
+@require_POST
+def actualizar_porcentaje_ajuste(request):
+    """HU-CM2.1 — guarda el % global de ajuste de precio a aplicar al publicar/actualizar en ML."""
+    valor_crudo = request.POST.get("porcentaje", "").strip()
+    try:
+        porcentaje = Decimal(valor_crudo)
+    except (InvalidOperation, TypeError):
+        messages.error(request, f"'{valor_crudo}' no es un porcentaje válido.")
+        return redirect("catalogo_ml:index")
+
+    if porcentaje <= -100:
+        messages.error(
+            request,
+            "El porcentaje no puede ser -100% o menos (dejaría el precio publicado en cero o negativo).",
+        )
+        return redirect("catalogo_ml:index")
+
+    config = services.guardar_porcentaje_ajuste(porcentaje, request.user)
+    messages.success(request, f"Porcentaje de ajuste actualizado a {config.porcentaje_ajuste_precio}%.")
     return redirect("catalogo_ml:index")
 
 

@@ -5,12 +5,13 @@ que gestorBQ: pedidos/services.py).
 
 import logging
 from datetime import timedelta
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.utils import timezone
 
 from integraciones import ml_client, stockservice_client
 
-from .models import MLItemMap, MLToken, SkuSyncConfig
+from .models import ConfiguracionSyncML, MLItemMap, MLToken, SkuSyncConfig
 
 PAGE_SIZE = 50
 
@@ -67,6 +68,29 @@ def construir_fila_por_sku(sku):
     config = SkuSyncConfig.objects.filter(sku=sku).first()
     mapa = MLItemMap.objects.filter(sku=sku).first()
     return construir_fila_catalogo(item, config, mapa)
+
+
+def obtener_porcentaje_ajuste():
+    return ConfiguracionSyncML.obtener().porcentaje_ajuste_precio
+
+
+def guardar_porcentaje_ajuste(porcentaje, usuario):
+    """HU-CM2.1 — el % que se aplica sobre el precio SAP para publicar/actualizar en ML."""
+    config = ConfiguracionSyncML.obtener()
+    config.porcentaje_ajuste_precio = porcentaje
+    config.updated_by = usuario
+    config.save()
+    return config
+
+
+def calcular_precio_ml(precio_sap):
+    """
+    HU-CM2.1 — aplica el % global (ConfiguracionSyncML) sobre el precio SAP. ROUND_HALF_UP:
+    mismo criterio de redondeo que usa Stock-Service sobre precios SAP, para no divergir.
+    """
+    porcentaje = obtener_porcentaje_ajuste()
+    precio_ajustado = Decimal(precio_sap) * (Decimal("1") + porcentaje / Decimal("100"))
+    return int(precio_ajustado.to_integral_value(rounding=ROUND_HALF_UP))
 
 
 class TokenMLNoConfigurado(Exception):

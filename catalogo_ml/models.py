@@ -72,6 +72,35 @@ class MLItemMap(models.Model):
         return f"{self.sku} -> {self.ml_item_id}"
 
 
+class ConfiguracionSyncML(models.Model):
+    """
+    Config global del Módulo 1 (HU-CM2.1, SPK-MELI-7 resuelto: un % único para todo el catálogo,
+    editable desde la propia UI). Fila única — `obtener()` siempre trabaja sobre pk=1.
+    """
+
+    porcentaje_ajuste_precio = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="configuraciones_sync_ml_editadas",
+    )
+
+    class Meta:
+        verbose_name = "Configuración de sync de Mercado Libre"
+        verbose_name_plural = "Configuración de sync de Mercado Libre"
+
+    def __str__(self):
+        return f"Ajuste de precio: {self.porcentaje_ajuste_precio}%"
+
+    @classmethod
+    def obtener(cls):
+        return cls.objects.get_or_create(pk=1)[0]
+
+
 class MLToken(models.Model):
     """
     Token OAuth2 de la app de Mercado Libre (HU-CM0.2) — una sola fila, siempre la más reciente

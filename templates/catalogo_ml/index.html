@@ -3,14 +3,24 @@
 {% block content %}
 <div class="flex items-center justify-between mb-4">
   <h1 class="text-xl font-semibold">Selección y sync de catálogo hacia Mercado Libre</h1>
-  {% if hay_token_ml %}
-  <span class="text-sm text-green-700">✓ Conectado a Mercado Libre</span>
-  {% else %}
-  <a href="{% url 'catalogo_ml:ml_login' %}"
-     class="text-sm px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 rounded font-medium">
-    Conectar con Mercado Libre
-  </a>
-  {% endif %}
+  <div class="flex items-center gap-4">
+    <form method="post" action="{% url 'catalogo_ml:actualizar_porcentaje_ajuste' %}" class="flex items-center gap-2 text-sm">
+      {% csrf_token %}
+      <label for="porcentaje" class="text-slate-600">Ajuste de precio para ML:</label>
+      <input type="number" step="0.01" name="porcentaje" id="porcentaje" value="{{ porcentaje_ajuste }}"
+             class="border border-slate-300 rounded px-2 py-1 w-20 text-right">
+      <span class="text-slate-600">%</span>
+      <button type="submit" class="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50">Guardar</button>
+    </form>
+    {% if hay_token_ml %}
+    <span class="text-sm text-green-700">✓ Conectado a Mercado Libre</span>
+    {% else %}
+    <a href="{% url 'catalogo_ml:ml_login' %}"
+       class="text-sm px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 rounded font-medium">
+      Conectar con Mercado Libre
+    </a>
+    {% endif %}
+  </div>
 </div>
 
 <input

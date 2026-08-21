@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.conf import settings
@@ -11,7 +12,7 @@ from django.utils import timezone
 from utils import limpiar_descripcion_html
 
 from . import services
-from .models import MLItemMap, MLToken, SkuSyncConfig
+from .models import ConfiguracionSyncML, MLItemMap, MLToken, SkuSyncConfig
 
 
 class LimpiarDescripcionHtmlTests(SimpleTestCase):
@@ -523,3 +524,69 @@ class MlCallbackViewTests(TestCase):
 
         self.assertRedirects(respuesta, "/catalogo/")
         self.assertFalse(services.hay_token_ml())
+
+
+class ConfiguracionSyncMLTests(TestCase):
+    def test_obtener_crea_la_fila_con_cero_por_defecto(self):
+        config = ConfiguracionSyncML.obtener()
+        self.assertEqual(config.porcentaje_ajuste_precio, Decimal("0"))
+
+    def test_obtener_siempre_devuelve_la_misma_fila(self):
+        primera = ConfiguracionSyncML.obtener()
+        primera.porcentaje_ajuste_precio = Decimal("15")
+        primera.save()
+
+        self.assertEqual(ConfiguracionSyncML.obtener().porcentaje_ajuste_precio, Decimal("15"))
+        self.assertEqual(ConfiguracionSyncML.objects.count(), 1)
+
+
+class CalcularPrecioMlTests(TestCase):
+    def test_sin_ajuste_configurado_devuelve_el_mismo_precio(self):
+        self.assertEqual(services.calcular_precio_ml(1000), 1000)
+
+    def test_aplica_el_porcentaje_configurado(self):
+        services.guardar_porcentaje_ajuste(Decimal("10"), usuario=None)
+        self.assertEqual(services.calcular_precio_ml(1000), 1100)
+
+    def test_porcentaje_negativo_descuenta(self):
+        services.guardar_porcentaje_ajuste(Decimal("-20"), usuario=None)
+        self.assertEqual(services.calcular_precio_ml(1000), 800)
+
+    def test_redondea_con_round_half_up(self):
+        services.guardar_porcentaje_ajuste(Decimal("2.5"), usuario=None)
+        self.assertEqual(services.calcular_precio_ml(1001), 1026)  # 1026.025 -> 1026
+
+
+class ActualizarPorcentajeAjusteViewTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+
+    def test_requiere_login(self):
+        self.client.logout()
+        respuesta = self.client.post("/catalogo/ml/precio/", {"porcentaje": "10"})
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertIn("/accounts/login/", respuesta.url)
+
+    def test_guarda_un_porcentaje_valido(self):
+        respuesta = self.client.post("/catalogo/ml/precio/", {"porcentaje": "12.5"})
+
+        self.assertRedirects(respuesta, "/catalogo/")
+        self.assertEqual(ConfiguracionSyncML.obtener().porcentaje_ajuste_precio, Decimal("12.5"))
+        self.assertEqual(ConfiguracionSyncML.obtener().updated_by, self.usuario)
+
+    def test_valor_no_numerico_no_guarda_y_avisa(self):
+        respuesta = self.client.post("/catalogo/ml/precio/", {"porcentaje": "abc"})
+
+        self.assertRedirects(respuesta, "/catalogo/")
+        self.assertEqual(ConfiguracionSyncML.obtener().porcentaje_ajuste_precio, Decimal("0"))
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("no es un porcentaje válido" in m for m in mensajes))
+
+    def test_menos_cien_por_ciento_o_menos_se_rechaza(self):
+        respuesta = self.client.post("/catalogo/ml/precio/", {"porcentaje": "-100"})
+
+        self.assertRedirects(respuesta, "/catalogo/")
+        self.assertEqual(ConfiguracionSyncML.obtener().porcentaje_ajuste_precio, Decimal("0"))
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("no puede ser -100%" in m for m in mensajes))

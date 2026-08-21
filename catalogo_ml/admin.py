@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import MLItemMap, SkuSyncConfig
+from .models import ConfiguracionSyncML, MLItemMap, SkuSyncConfig
 
 
 @admin.register(SkuSyncConfig)
@@ -20,3 +20,12 @@ class MLItemMapAdmin(admin.ModelAdmin):
     list_display = ("sku", "ml_item_id", "ml_site_id", "status", "last_checked_at")
     search_fields = ("sku", "ml_item_id")
     list_filter = ("status", "ml_site_id")
+
+
+@admin.register(ConfiguracionSyncML)
+class ConfiguracionSyncMLAdmin(admin.ModelAdmin):
+    list_display = ("porcentaje_ajuste_precio", "updated_at", "updated_by")
+
+    def save_model(self, request, obj, form, change):
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
