@@ -590,3 +590,9 @@ class ActualizarPorcentajeAjusteViewTests(TestCase):
         self.assertEqual(ConfiguracionSyncML.obtener().porcentaje_ajuste_precio, Decimal("0"))
         mensajes = [str(m) for m in respuesta.wsgi_request._messages]
         self.assertTrue(any("no puede ser -100%" in m for m in mensajes))
+
+
+class HomeRedirigeACatalogoTests(TestCase):
+    def test_raiz_redirige_al_catalogo(self):
+        respuesta = self.client.get("/")
+        self.assertRedirects(respuesta, "/catalogo/", fetch_redirect_response=False)
