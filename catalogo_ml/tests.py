@@ -127,6 +127,17 @@ class ConstruirFilaCatalogoTests(TestCase):
         self.assertFalse(fila["sync_price"])
         self.assertEqual(fila["estado"], "No sincronizado")
         self.assertIsNone(fila["ml_item_id"])
+        self.assertIsNone(fila["precio_ml"])
+
+    def test_con_mapa_sin_precio_sincronizado_todavia_queda_en_none(self):
+        mapa = MLItemMap(sku="ML000111", ml_item_id="MLC999")
+        fila = services.construir_fila_catalogo(self._item_stockservice(), None, mapa)
+        self.assertIsNone(fila["precio_ml"])
+
+    def test_con_mapa_y_precio_sincronizado_lo_muestra(self):
+        mapa = MLItemMap(sku="ML000111", ml_item_id="MLC999", ultimo_precio_sincronizado=Decimal("1300.00"))
+        fila = services.construir_fila_catalogo(self._item_stockservice(), None, mapa)
+        self.assertEqual(fila["precio_ml"], Decimal("1300.00"))
 
     def test_stock_web_solo_suma_bodegas_01_y_11(self):
         fila = services.construir_fila_catalogo(self._item_stockservice(), None, None)

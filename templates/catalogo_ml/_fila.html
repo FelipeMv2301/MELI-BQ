@@ -6,6 +6,7 @@
   <td class="px-4 py-3 text-body">{{ fila.nombre }}</td>
   <td class="px-4 py-3 text-right text-body tabular-nums">{{ fila.stock_web }}</td>
   <td class="px-4 py-3 text-right text-body tabular-nums">{% if fila.precio_neto %}${{ fila.precio_neto }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="px-4 py-3 text-right tabular-nums">{% if fila.precio_ml %}<span class="text-body">${{ fila.precio_ml }}</span>{% else %}<span class="text-muted text-xs">No sincronizado</span>{% endif %}</td>
   <td class="px-4 py-3 text-center">
     <input type="checkbox" {% if fila.sync_stock %}checked{% endif %} class="accent-brand"
            hx-post="{% url 'catalogo_ml:toggle_sync' fila.sku %}"

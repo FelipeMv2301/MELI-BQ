@@ -45,6 +45,7 @@ def construir_fila_catalogo(item, config, mapa):
         "sku": item["sku"],
         "nombre": item.get("name") or "",
         "precio_neto": item.get("price"),
+        "precio_ml": mapa.ultimo_precio_sincronizado if mapa else None,
         "stock_web": sum(item.get(bodega) or 0 for bodega in _BODEGAS_WEB),
         "sync_stock": config.sync_stock if config else False,
         "sync_price": config.sync_price if config else False,

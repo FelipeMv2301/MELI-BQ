@@ -62,6 +62,10 @@ class MLItemMap(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     last_checked_at = models.DateTimeField(null=True, blank=True)
 
+    # Último precio que efectivamente se empujó a ML (HU-CM3.3) — no es una consulta en vivo a la
+    # API por fila (2000 SKUs por página harían inviable la grilla), es el último valor conocido.
+    ultimo_precio_sincronizado = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
