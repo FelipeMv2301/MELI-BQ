@@ -191,3 +191,42 @@ def toggle_masivo(request):
     pagina = _leer_pagina(request.POST)
     contexto = _armar_contexto_tabla(busqueda, pagina)
     return render(request, "catalogo_ml/_tabla.html", contexto)
+
+
+@login_required
+@require_POST
+def vincular_masivo(request):
+    """
+    HU-CM2.2 (parte 1) — busca los SKU seleccionados en la cuenta real de ML y vincula
+    (`MLItemMap`) los que ya estén publicados. Los que no aparezcan quedan sin tocar: publicar uno
+    nuevo necesita category_id resuelto (HU-CM2.3), todavía sin construir.
+    """
+    skus = request.POST.getlist("skus")
+    if not skus:
+        return HttpResponseBadRequest("no hay productos seleccionados")
+
+    try:
+        encontrados, no_encontrados = services.vincular_masivo(skus)
+    except services.TokenMLNoConfigurado:
+        messages.error(request, "Conectá con Mercado Libre antes de sincronizar.")
+        return redirect("catalogo_ml:index")
+    except Exception as exc:
+        messages.error(request, f"No se pudo consultar Mercado Libre: {exc}")
+        return redirect("catalogo_ml:index")
+
+    if encontrados:
+        messages.success(
+            request,
+            f"{len(encontrados)} producto{'s' if len(encontrados) != 1 else ''} vinculado{'s' if len(encontrados) != 1 else ''} con un ítem ya existente en Mercado Libre.",
+        )
+    if no_encontrados:
+        messages.warning(
+            request,
+            f"{len(no_encontrados)} no se encontraron en Mercado Libre — todavía no se pueden "
+            "publicar (falta definir categoría, HU-CM2.3).",
+        )
+
+    busqueda = request.POST.get("q", "").strip()
+    pagina = _leer_pagina(request.POST)
+    contexto = _armar_contexto_tabla(busqueda, pagina)
+    return render(request, "catalogo_ml/_tabla.html", contexto)

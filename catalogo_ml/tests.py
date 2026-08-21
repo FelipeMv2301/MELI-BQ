@@ -696,3 +696,118 @@ class DescripcionModeloItemTests(TestCase):
 
     def test_sin_tags_relevantes_es_legacy(self):
         self.assertEqual(services.descripcion_modelo_item(), "Legacy")
+
+
+class VincularSiExisteEnMlTests(TestCase):
+    @patch("catalogo_ml.services.ml_client.buscar_item_por_sku")
+    def test_lo_encuentra_y_crea_el_mapa(self, buscar_mock):
+        buscar_mock.return_value = "MLC111"
+
+        mapa = services.vincular_si_existe_en_ml("ML000111", "APP_USR-abc", 999)
+
+        buscar_mock.assert_called_once_with("APP_USR-abc", 999, "ML000111")
+        self.assertEqual(mapa.ml_item_id, "MLC111")
+        self.assertEqual(MLItemMap.objects.get(sku="ML000111").ml_item_id, "MLC111")
+
+    @patch("catalogo_ml.services.ml_client.buscar_item_por_sku")
+    def test_no_lo_encuentra_no_crea_nada(self, buscar_mock):
+        buscar_mock.return_value = None
+
+        mapa = services.vincular_si_existe_en_ml("ML000111", "APP_USR-abc", 999)
+
+        self.assertIsNone(mapa)
+        self.assertFalse(MLItemMap.objects.filter(sku="ML000111").exists())
+
+
+class VincularMasivoServiceTests(TestCase):
+    def setUp(self):
+        MLToken.objects.create(
+            access_token="vigente", refresh_token="TG-1",
+            expires_at=timezone.now() + timedelta(hours=5), ml_user_id=999,
+        )
+
+    @patch("catalogo_ml.services.ml_client.buscar_item_por_sku")
+    def test_separa_encontrados_de_no_encontrados(self, buscar_mock):
+        buscar_mock.side_effect = lambda access_token, seller_id, sku: "MLC1" if sku == "ML000111" else None
+
+        encontrados, no_encontrados = services.vincular_masivo(["ML000111", "ML000222"])
+
+        self.assertEqual(encontrados, ["ML000111"])
+        self.assertEqual(no_encontrados, ["ML000222"])
+
+    @patch("catalogo_ml.services.ml_client.buscar_item_por_sku")
+    def test_no_vuelve_a_buscar_un_sku_ya_vinculado(self, buscar_mock):
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC1")
+
+        encontrados, no_encontrados = services.vincular_masivo(["ML000111"])
+
+        buscar_mock.assert_not_called()
+        self.assertEqual(encontrados, ["ML000111"])
+        self.assertEqual(no_encontrados, [])
+
+    def test_sin_token_lanza_error_claro(self):
+        MLToken.objects.all().delete()
+        with self.assertRaises(services.TokenMLNoConfigurado):
+            services.vincular_masivo(["ML000111"])
+
+
+class VincularMasivoViewTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+
+    def _catalogo_mock(self):
+        return {
+            "total": 1, "limit": 50, "offset": 0,
+            "items": [{"sku": "ML000111", "name": "Tubo A", "price": 100, "stock_01": 1, "stock_11": 0}],
+        }
+
+    def test_requiere_login(self):
+        self.client.logout()
+        respuesta = self.client.post("/catalogo/vincular/")
+        self.assertEqual(respuesta.status_code, 302)
+
+    def test_sin_seleccion_da_400(self):
+        respuesta = self.client.post("/catalogo/vincular/")
+        self.assertEqual(respuesta.status_code, 400)
+
+    def test_sin_token_avisa_que_hay_que_conectar(self):
+        respuesta = self.client.post("/catalogo/vincular/", {"skus": ["ML000111"]})
+
+        self.assertRedirects(respuesta, "/catalogo/")
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("Conectá con Mercado Libre" in m for m in mensajes))
+
+    @patch("catalogo_ml.views.stockservice_client.obtener_catalogo")
+    @patch("catalogo_ml.services.ml_client.buscar_item_por_sku")
+    def test_encontrado_queda_vinculado_y_avisa(self, buscar_mock, obtener_catalogo_mock):
+        MLToken.objects.create(
+            access_token="vigente", refresh_token="TG-1",
+            expires_at=timezone.now() + timedelta(hours=5), ml_user_id=999,
+        )
+        buscar_mock.return_value = "MLC111"
+        obtener_catalogo_mock.return_value = self._catalogo_mock()
+
+        respuesta = self.client.post("/catalogo/vincular/", {"skus": ["ML000111"]})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(MLItemMap.objects.get(sku="ML000111").ml_item_id, "MLC111")
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("vinculado" in m for m in mensajes))
+
+    @patch("catalogo_ml.views.stockservice_client.obtener_catalogo")
+    @patch("catalogo_ml.services.ml_client.buscar_item_por_sku")
+    def test_no_encontrado_avisa_que_falta_categoria(self, buscar_mock, obtener_catalogo_mock):
+        MLToken.objects.create(
+            access_token="vigente", refresh_token="TG-1",
+            expires_at=timezone.now() + timedelta(hours=5), ml_user_id=999,
+        )
+        buscar_mock.return_value = None
+        obtener_catalogo_mock.return_value = self._catalogo_mock()
+
+        respuesta = self.client.post("/catalogo/vincular/", {"skus": ["ML000111"]})
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertFalse(MLItemMap.objects.filter(sku="ML000111").exists())
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("no se encontraron" in m for m in mensajes))

@@ -65,6 +65,13 @@
     {{ etiqueta }}
   </button>
   {% endfor %}
+  <button type="button" class="accion-masiva text-sm font-semibold px-3 py-1.5 rounded-lg border border-linestrong text-body hover:bg-appbg"
+          hx-post="{% url 'catalogo_ml:vincular_masivo' %}"
+          hx-include="[name='skus']:checked, [name='q'], [name='pagina']"
+          hx-target="#tabla-catalogo" hx-swap="outerHTML"
+          hx-confirm="¿Buscar en Mercado Libre los productos seleccionados y vincular los que ya existan publicados?">
+    Sincronizar con Mercado Libre
+  </button>
 </div>
 
 {% include "catalogo_ml/_tabla.html" %}

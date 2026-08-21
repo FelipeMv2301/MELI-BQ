@@ -7,6 +7,7 @@ app_name = "catalogo_ml"
 urlpatterns = [
     path("", views.index, name="index"),
     path("masivo/", views.toggle_masivo, name="toggle_masivo"),
+    path("vincular/", views.vincular_masivo, name="vincular_masivo"),
     path("ml/conectar/", views.ml_login, name="ml_login"),
     path("ml/callback/", views.ml_callback, name="ml_callback"),
     path("ml/precio/", views.actualizar_porcentaje_ajuste, name="actualizar_porcentaje_ajuste"),

@@ -76,6 +76,32 @@ def obtener_usuario(access_token, user_id):
     return respuesta.json()
 
 
+def buscar_item_por_sku(access_token, seller_id, sku):
+    """
+    HU-CM2.2 — antes de publicar, busca si el SKU ya está en la cuenta: en `seller_custom_field`
+    (campo legacy) o en el atributo `SELLER_SKU` vía el parámetro `seller_sku` (forma actual) — un
+    ítem viejo puede estar en cualquiera de los dos según cuándo se publicó. Devuelve el primer
+    item_id que aparezca, o None si no está en ninguno.
+
+    Contrato de `results` (array de item_id) no encontrado en las guías de developers.mercadolibre.cl
+    pese a revisar varias páginas relacionadas (Publicar productos, Identificadores de productos,
+    Buscador de productos) — es el contrato general y estable de este endpoint, pero pendiente de
+    confirmar contra una respuesta real apenas haya cuenta conectada con ítems para probar.
+    """
+    for parametro in ("seller_custom_field", "seller_sku"):
+        respuesta = requests.get(
+            f"{BASE_URL}/users/{seller_id}/items/search",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={parametro: sku},
+            timeout=15,
+        )
+        respuesta.raise_for_status()
+        resultados = respuesta.json().get("results", [])
+        if resultados:
+            return resultados[0]
+    return None
+
+
 def publicar_item(access_token, payload):
     """HU-CM2.2 — POST /items."""
     raise NotImplementedError

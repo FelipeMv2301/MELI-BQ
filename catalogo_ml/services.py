@@ -179,3 +179,38 @@ def descripcion_modelo_item():
     if perfil.usa_user_products:
         return "User Products (sin multiorigen)"
     return "Legacy"
+
+
+def vincular_si_existe_en_ml(sku, access_token, seller_id):
+    """
+    HU-CM2.2 (parte 1 — detectar y adoptar, sin publicar nada nuevo). Publicar un ítem que
+    realmente no existe todavía necesita category_id resuelto (HU-CM2.3, sin construir) — nunca se
+    adivina una categoría. Devuelve el MLItemMap si el SKU ya estaba en ML, o None si no aparece.
+    """
+    item_id = ml_client.buscar_item_por_sku(access_token, seller_id, sku)
+    if item_id is None:
+        return None
+    mapa, _creado = MLItemMap.objects.update_or_create(sku=sku, defaults={"ml_item_id": item_id})
+    return mapa
+
+
+def vincular_masivo(skus):
+    """
+    Corre vincular_si_existe_en_ml para los SKU que todavía no tengan MLItemMap (uno ya vinculado
+    nunca se vuelve a buscar). Devuelve (encontrados, no_encontrados) para que la vista arme un
+    mensaje claro de cuántos quedaron vinculados y cuántos siguen sin publicar.
+    """
+    ya_vinculados = set(MLItemMap.objects.filter(sku__in=skus).values_list("sku", flat=True))
+    pendientes = [sku for sku in skus if sku not in ya_vinculados]
+
+    encontrados = list(ya_vinculados)
+    no_encontrados = []
+    if not pendientes:
+        return encontrados, no_encontrados
+
+    access_token = obtener_token_valido()
+    seller_id = MLToken.objects.first().ml_user_id
+    for sku in pendientes:
+        mapa = vincular_si_existe_en_ml(sku, access_token, seller_id)
+        (encontrados if mapa else no_encontrados).append(sku)
+    return encontrados, no_encontrados

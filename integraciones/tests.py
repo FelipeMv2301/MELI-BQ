@@ -171,3 +171,39 @@ class ObtenerUsuarioTests(SimpleTestCase):
             get_mock.return_value = _respuesta_mock(payload)
             resultado = ml_client.obtener_usuario("APP_USR-abc", 999)
         self.assertEqual(resultado, payload)
+
+
+class BuscarItemPorSkuTests(SimpleTestCase):
+    @patch("integraciones.ml_client.requests.get")
+    def test_lo_encuentra_por_seller_custom_field_sin_probar_seller_sku(self, get_mock):
+        get_mock.return_value = _respuesta_mock({"results": ["MLC111"]})
+
+        resultado = ml_client.buscar_item_por_sku("APP_USR-abc", 999, "ML000111")
+
+        self.assertEqual(resultado, "MLC111")
+        get_mock.assert_called_once()
+        self.assertEqual(get_mock.call_args.args[0], "https://api.mercadolibre.com/users/999/items/search")
+        self.assertEqual(get_mock.call_args.kwargs["params"], {"seller_custom_field": "ML000111"})
+        self.assertEqual(get_mock.call_args.kwargs["headers"], {"Authorization": "Bearer APP_USR-abc"})
+
+    @patch("integraciones.ml_client.requests.get")
+    def test_si_no_esta_en_seller_custom_field_prueba_seller_sku(self, get_mock):
+        get_mock.side_effect = [
+            _respuesta_mock({"results": []}),
+            _respuesta_mock({"results": ["MLC222"]}),
+        ]
+
+        resultado = ml_client.buscar_item_por_sku("APP_USR-abc", 999, "ML000111")
+
+        self.assertEqual(resultado, "MLC222")
+        self.assertEqual(get_mock.call_count, 2)
+        self.assertEqual(get_mock.call_args.kwargs["params"], {"seller_sku": "ML000111"})
+
+    @patch("integraciones.ml_client.requests.get")
+    def test_sin_resultados_en_ninguno_devuelve_none(self, get_mock):
+        get_mock.return_value = _respuesta_mock({"results": []})
+
+        resultado = ml_client.buscar_item_por_sku("APP_USR-abc", 999, "ML000111")
+
+        self.assertIsNone(resultado)
+        self.assertEqual(get_mock.call_count, 2)
