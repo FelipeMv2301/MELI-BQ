@@ -49,9 +49,16 @@
 
     // HU-CM1.3 — solo pide confirmación si la acción masiva afecta a más de 50 productos
     // (hx-confirm por sí solo confirmaría siempre, sin importar cuántos estén seleccionados).
+    // Sin esto, un clic sin nada seleccionado mandaba la request igual, el backend respondía 400
+    // y htmx no mostraba nada — quedaba pareciendo que el botón "no hacía nada".
     document.addEventListener('htmx:confirm', function (event) {
       if (!event.detail.elt.classList.contains('accion-masiva')) return;
       var seleccionados = document.querySelectorAll("input[name='skus']:checked").length;
+      if (seleccionados === 0) {
+        event.preventDefault();
+        alert('Seleccioná al menos un producto primero.');
+        return;
+      }
       if (seleccionados <= 50) return;
       event.preventDefault();
       if (confirm('¿Aplicar a los ' + seleccionados + ' productos seleccionados?')) {
