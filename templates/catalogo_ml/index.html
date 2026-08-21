@@ -1,26 +1,35 @@
 {% extends "base.html" %}
 {% block title %}Catálogo — MELI-BQ{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-4">
-  <h1 class="text-xl font-semibold">Selección y sync de catálogo hacia Mercado Libre</h1>
-  <div class="flex items-center gap-4">
-    <form method="post" action="{% url 'catalogo_ml:actualizar_porcentaje_ajuste' %}" class="flex items-center gap-2 text-sm">
-      {% csrf_token %}
-      <label for="porcentaje" class="text-slate-600">Ajuste de precio para ML:</label>
-      <input type="number" step="0.01" name="porcentaje" id="porcentaje" value="{{ porcentaje_ajuste }}"
-             class="border border-slate-300 rounded px-2 py-1 w-20 text-right">
-      <span class="text-slate-600">%</span>
-      <button type="submit" class="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50">Guardar</button>
-    </form>
-    {% if hay_token_ml %}
-    <span class="text-sm text-green-700">✓ Conectado a Mercado Libre</span>
-    {% else %}
-    <a href="{% url 'catalogo_ml:ml_login' %}"
-       class="text-sm px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 rounded font-medium">
-      Conectar con Mercado Libre
-    </a>
-    {% endif %}
-  </div>
+<div class="mb-5">
+  <h1 class="text-2xl font-bold text-ink">Selección y sync de catálogo hacia Mercado Libre</h1>
+</div>
+
+<div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+  <form method="post" action="{% url 'catalogo_ml:actualizar_porcentaje_ajuste' %}"
+        class="flex items-end gap-3 bg-surface border border-line rounded-2xl px-4 py-3">
+    {% csrf_token %}
+    <label class="block">
+      <span class="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">Ajuste de precio para ML</span>
+      <span class="flex items-center gap-1.5">
+        <input type="number" step="0.01" name="porcentaje" id="porcentaje" value="{{ porcentaje_ajuste }}"
+               class="text-sm rounded-lg border border-linestrong bg-field text-body px-3 py-2 w-24 text-right focus:border-brand focus:outline-none">
+        <span class="text-body text-sm">%</span>
+      </span>
+    </label>
+    <button type="submit" class="text-sm font-semibold px-4 py-2 rounded-full bg-brand text-white hover:bg-brand-ink shadow-sm">Guardar</button>
+  </form>
+
+  {% if hay_token_ml %}
+  <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-apro-ink bg-apro-bg px-3 py-2 rounded-full">
+    <span class="w-1.5 h-1.5 rounded-full bg-apro-dot"></span> Conectado a Mercado Libre
+  </span>
+  {% else %}
+  <a href="{% url 'catalogo_ml:ml_login' %}"
+     class="text-sm font-semibold px-4 py-2 rounded-full bg-brand text-white hover:bg-brand-ink shadow-sm">
+    Conectar con Mercado Libre
+  </a>
+  {% endif %}
 </div>
 
 <input
@@ -28,7 +37,7 @@
   name="q"
   value="{{ q }}"
   placeholder="Buscar por SKU o nombre..."
-  class="border border-slate-300 rounded px-3 py-2 mb-4 w-80"
+  class="text-sm rounded-lg border border-linestrong bg-field text-body px-3 py-2 mb-4 w-80 focus:border-brand focus:outline-none"
   hx-get="{% url 'catalogo_ml:index' %}"
   hx-target="#tabla-catalogo"
   hx-swap="outerHTML"
@@ -36,10 +45,10 @@
   hx-include="this"
 >
 
-<div class="flex gap-2 mb-3 text-sm">
-  <span class="text-slate-500 self-center">Con los seleccionados:</span>
+<div class="flex flex-wrap gap-2 mb-3 text-sm items-center">
+  <span class="text-muted">Con los seleccionados:</span>
   {% for etiqueta, campo, valor in acciones_masivas %}
-  <button type="button" class="accion-masiva px-2 py-1 border border-slate-200 rounded hover:bg-slate-50"
+  <button type="button" class="accion-masiva text-sm font-semibold px-3 py-1.5 rounded-lg border border-linestrong text-body hover:bg-appbg"
           hx-post="{% url 'catalogo_ml:toggle_masivo' %}"
           hx-include="[name='skus']:checked, [name='q'], [name='pagina']"
           hx-vals='{"campo": "{{ campo }}", "valor": "{{ valor }}"}'

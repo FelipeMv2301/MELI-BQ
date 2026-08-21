@@ -5,9 +5,41 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}MELI-BQ{% endblock %}</title>
+
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/icono.svg' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <style>
+    /* Mismos tokens de gestorBQ (bioquimica.cl) — identidad visual compartida entre los
+       portales internos. Claro/oscuro vía clase .dark en <html>, persistido en localStorage. */
+    :root {
+      --appbg:#edf4f4; --surface:#ffffff; --field:#ffffff; --line:#dbe8e8; --linestrong:#c6d8d8;
+      --body:#1c2b2d; --muted:#5f7476; --ink:#12262a;
+      --brand:#0b8f9c; --brand-ink:#076370; --brand-soft:#dbf1f2;
+      --pend-bg:#fdefdd; --pend-ink:#965310; --pend-dot:#ef8f2a;
+      --apro-bg:#dbf1f2; --apro-ink:#076370; --apro-dot:#0b8f9c;
+      --rech-bg:#fbe4e2; --rech-ink:#8c261d; --rech-dot:#e0463a;
+    }
+    .dark {
+      --appbg:#0e1417; --surface:#161c21; --field:#1c242a; --line:#29323a; --linestrong:#3a454e;
+      --body:#dfe7ec; --muted:#93a1ab; --ink:#eef4f6;
+      --brand:#2cbae2; --brand-ink:#8bdcef; --brand-soft:#0c2c34;
+      --pend-bg:#352a12; --pend-ink:#f0b46a; --pend-dot:#ef8f2a;
+      --apro-bg:#0c2c34; --apro-ink:#6fd2dd; --apro-dot:#2cbae2;
+      --rech-bg:#351512; --rech-ink:#ef8579; --rech-dot:#e0463a;
+    }
+  </style>
+  <script>
+    (function () {
+      if (localStorage.getItem('tema') === 'dark') document.documentElement.classList.add('dark');
+    })();
+  </script>
   <script src="{% static 'vendor/htmx-2.0.4.min.js' %}" defer></script>
   <script>
+    window.alternarTema = function () {
+      var oscuro = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('tema', oscuro ? 'dark' : 'claro');
+    };
+
     // Django exige el header X-CSRFToken en cada POST — htmx no lo manda solo, hay que leerlo
     // de la cookie que ya pone CsrfViewMiddleware (mismo patrón documentado por htmx+Django).
     document.addEventListener('htmx:configRequest', function (event) {
@@ -28,32 +60,42 @@
     });
   </script>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen">
-  <header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center gap-6">
-    <span class="font-semibold">MELI-BQ</span>
-    <nav class="flex gap-4 text-sm">
-      <a href="{% url 'catalogo_ml:index' %}" class="hover:text-blue-600">Catálogo</a>
-      <a href="{% url 'facturacion_ml:index' %}" class="hover:text-blue-600">Facturación</a>
+<body class="min-h-screen bg-appbg text-body font-sans antialiased">
+  {% if user.is_authenticated %}
+  <header class="sticky top-0 z-40 flex items-center gap-5 px-6 py-2.5 bg-surface border-b border-line">
+    <a href="{% url 'catalogo_ml:index' %}" class="flex items-center gap-2 shrink-0">
+      <img src="{% static 'images/logo.png' %}"        alt="bioquimica.cl" class="h-8 block dark:hidden">
+      <img src="{% static 'images/logo_blanco.png' %}" alt="bioquimica.cl" class="h-9 hidden dark:block">
+      <strong class="text-ink">MELI-BQ</strong>
+    </a>
+
+    <nav class="flex gap-1">
+      <a href="{% url 'catalogo_ml:index' %}"
+         class="text-sm font-semibold text-muted hover:text-body hover:bg-appbg px-3 py-2 rounded-lg">Catálogo</a>
+      <a href="{% url 'facturacion_ml:index' %}"
+         class="text-sm font-semibold text-muted hover:text-body hover:bg-appbg px-3 py-2 rounded-lg">Facturación</a>
     </nav>
-    <div class="ml-auto text-sm text-slate-500">
-      {% if user.is_authenticated %}
-        {{ user.email }} · <a href="{% url 'account_logout' %}" class="hover:text-blue-600">Salir</a>
-      {% else %}
-        <a href="{% url 'account_login' %}" class="hover:text-blue-600">Ingresar con Google</a>
-      {% endif %}
+
+    <span class="flex-1"></span>
+
+    <button onclick="alternarTema()" title="Modo claro / oscuro" aria-label="Modo claro/oscuro"
+            class="w-9 h-9 rounded-lg border border-line grid place-items-center text-muted hover:text-body">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+
+    <div class="flex items-center gap-3">
+      <span class="w-9 h-9 rounded-full bg-brand text-white grid place-items-center font-bold text-xs">{{ user.email|first|upper }}</span>
+      <a href="{% url 'account_logout' %}"
+         class="text-sm font-semibold text-brand-ink hover:bg-brand-soft px-3 py-2 rounded-lg">Salir</a>
     </div>
   </header>
-  <main class="p-6">
-    {% if messages %}
-    <div class="mb-4 space-y-2">
-      {% for message in messages %}
-      <div class="px-4 py-2 rounded text-sm {% if message.tags == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-green-50 text-green-700 border border-green-200{% endif %}">
-        {{ message }}
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
+  {% endif %}
+
+  <main class="max-w-6xl w-full mx-auto px-6 pt-7 pb-16">
     {% block content %}{% endblock %}
   </main>
+
+  <div id="toasts" class="fixed top-[70px] right-5 z-[60] flex flex-col gap-2.5"></div>
+  {% include "partials/_toast.html" %}
 </body>
 </html>

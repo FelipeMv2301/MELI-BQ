@@ -1,22 +1,32 @@
-<tr id="fila-{{ fila.sku }}" class="border-b border-slate-100">
-  <td class="py-2 pr-2">
-    <input type="checkbox" name="skus" value="{{ fila.sku }}">
+<tr id="fila-{{ fila.sku }}" class="border-t border-line hover:bg-appbg">
+  <td class="px-4 py-3">
+    <input type="checkbox" name="skus" value="{{ fila.sku }}" class="accent-brand">
   </td>
-  <td class="py-2 pr-4 font-mono">{{ fila.sku }}</td>
-  <td class="py-2 pr-4">{{ fila.nombre }}</td>
-  <td class="py-2 pr-4 text-right">{{ fila.stock_web }}</td>
-  <td class="py-2 pr-4 text-right">{% if fila.precio_neto %}${{ fila.precio_neto }}{% else %}—{% endif %}</td>
-  <td class="py-2 pr-4 text-center">
-    <input type="checkbox" {% if fila.sync_stock %}checked{% endif %}
+  <td class="px-4 py-3 font-mono text-xs font-semibold text-ink tabular-nums">{{ fila.sku }}</td>
+  <td class="px-4 py-3 text-body">{{ fila.nombre }}</td>
+  <td class="px-4 py-3 text-right text-body tabular-nums">{{ fila.stock_web }}</td>
+  <td class="px-4 py-3 text-right text-body tabular-nums">{% if fila.precio_neto %}${{ fila.precio_neto }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+  <td class="px-4 py-3 text-center">
+    <input type="checkbox" {% if fila.sync_stock %}checked{% endif %} class="accent-brand"
            hx-post="{% url 'catalogo_ml:toggle_sync' fila.sku %}"
            hx-vals='{"campo": "sync_stock"}'
            hx-target="#fila-{{ fila.sku }}" hx-swap="outerHTML">
   </td>
-  <td class="py-2 pr-4 text-center">
-    <input type="checkbox" {% if fila.sync_price %}checked{% endif %}
+  <td class="px-4 py-3 text-center">
+    <input type="checkbox" {% if fila.sync_price %}checked{% endif %} class="accent-brand"
            hx-post="{% url 'catalogo_ml:toggle_sync' fila.sku %}"
            hx-vals='{"campo": "sync_price"}'
            hx-target="#fila-{{ fila.sku }}" hx-swap="outerHTML">
   </td>
-  <td class="py-2 pr-4">{{ fila.estado }}</td>
+  <td class="px-4 py-3">
+    {% if fila.estado == "Activo" %}
+    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-apro-ink bg-apro-bg px-2.5 py-1 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-apro-dot"></span> {{ fila.estado }}</span>
+    {% elif fila.estado == "Cerrado" %}
+    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-rech-ink bg-rech-bg px-2.5 py-1 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-rech-dot"></span> {{ fila.estado }}</span>
+    {% elif fila.estado == "No sincronizado" %}
+    <span class="text-xs text-muted">{{ fila.estado }}</span>
+    {% else %}
+    <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-pend-ink bg-pend-bg px-2.5 py-1 rounded-full"><span class="w-1.5 h-1.5 rounded-full bg-pend-dot"></span> {{ fila.estado }}</span>
+    {% endif %}
+  </td>
 </tr>
