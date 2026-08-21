@@ -30,13 +30,9 @@
     <span class="text-sm text-muted">Modelo de ítem: <b class="text-body">{{ modelo_item }}</b></span>
     {% endif %}
     {% endif %}
-    {# Siempre visible, no solo cuando falta conectar: la fila de MLToken puede seguir existiendo
-       con el access_token vencido y sin refresh_token (login previo al fix del scope), y ahí
-       "hay_token_ml" da True aunque la conexión ya no sirva — sin este link no habría forma de
-       volver a autorizar desde la UI. #}
     <a href="{% url 'catalogo_ml:ml_login' %}"
        class="text-sm font-semibold px-4 py-2 rounded-full bg-brand text-white hover:bg-brand-ink shadow-sm">
-      {% if hay_token_ml %}Reconectar con Mercado Libre{% else %}Conectar con Mercado Libre{% endif %}
+      {% if hay_token_ml %}Reconectar con Meli{% else %}Conectar con Meli{% endif %}
     </a>
   </div>
 </div>
@@ -95,6 +91,18 @@
           hx-confirm="¿Buscar en Mercado Libre los productos seleccionados y vincular los que ya existan publicados?">
     Sincronizar con Mercado Libre
   </button>
+
+  <span class="flex items-center gap-1.5 ml-2 pl-3 border-l border-line">
+    <input type="number" step="0.01" name="porcentaje_masivo" placeholder="%"
+           class="text-sm rounded-lg border border-linestrong bg-field text-body px-2 py-1 w-20 text-right focus:border-brand focus:outline-none">
+    <button type="button" class="accion-masiva text-sm font-semibold px-3 py-1.5 rounded-lg border border-linestrong text-body hover:bg-appbg"
+            hx-post="{% url 'catalogo_ml:aplicar_porcentaje_masivo' %}"
+            hx-include="[name='skus']:checked, [name='q'], [name='pagina'], [name='porcentaje_masivo'], {{ filtros_include }}"
+            hx-target="#tabla-catalogo" hx-swap="outerHTML"
+            hx-confirm="¿Aplicar este porcentaje a los productos seleccionados?">
+      Aplicar % a seleccionados
+    </button>
+  </span>
 </div>
 
 {% include "catalogo_ml/_tabla.html" %}

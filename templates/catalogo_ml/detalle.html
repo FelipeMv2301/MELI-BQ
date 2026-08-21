@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}{{ p.sku }} — MELI-BQ{% endblock %}
+{% block content %}
+<a href="{% url 'catalogo_ml:index' %}"
+   class="inline-flex items-center gap-1.5 text-sm font-semibold text-body bg-surface border border-linestrong rounded-full px-4 py-2 hover:border-brand hover:text-brand-ink shadow-sm mb-4">← Volver al catálogo</a>
+
+<div class="mb-5">
+  <h1 class="text-2xl font-bold text-ink">{{ p.nombre }}</h1>
+  <p class="text-sm text-muted mt-1 font-mono">{{ p.sku }}</p>
+</div>
+
+<div class="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
+
+  <!-- Columna izquierda: foto + datos de SAP -->
+  <div class="flex flex-col gap-4">
+    <div class="bg-surface border border-line rounded-2xl p-4">
+      {% if p.foto %}
+      <img src="{{ p.foto }}" alt="{{ p.nombre }}" class="w-full rounded-xl">
+      {% else %}
+      <div class="w-full h-48 rounded-xl bg-appbg grid place-items-center text-muted text-sm">
+        Sin foto en la web
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="bg-surface border border-line rounded-2xl p-5">
+      <h2 class="text-sm font-bold text-ink mb-3">Datos de SAP</h2>
+      <dl class="text-sm flex flex-col gap-2">
+        <div class="flex justify-between gap-3">
+          <dt class="text-muted">Precio neto</dt>
+          <dd class="text-ink font-semibold tabular-nums">
+            {% if p.precio_neto %}${{ p.precio_neto }}{% else %}<span class="text-muted">—</span>{% endif %}
+          </dd>
+        </div>
+        <div class="flex justify-between gap-3">
+          <dt class="text-muted">Stock web</dt>
+          <dd class="text-ink font-semibold tabular-nums">{{ p.stock_web }}</dd>
+        </div>
+        {% for bodega, cantidad in p.stock_por_bodega.items %}
+        <div class="flex justify-between gap-3 text-xs">
+          <dt class="text-muted font-mono">{{ bodega }}</dt>
+          <dd class="text-body tabular-nums">{{ cantidad }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+    </div>
+  </div>
+
+  <!-- Columna derecha: precio, sync y vínculos -->
+  <div class="flex flex-col gap-4">
+
+    <div class="bg-surface border border-line rounded-2xl p-5">
+      <h2 class="text-sm font-bold text-ink mb-1">Precio a publicar en Mercado Libre</h2>
+      <p class="text-xs text-muted mb-4">
+        El precio manual pisa cualquier porcentaje. Si dejás ambos vacíos, se usa el % global
+        ({{ p.porcentaje_global }}%).
+      </p>
+
+      <form method="post" action="{% url 'catalogo_ml:guardar_precio_producto' p.sku %}"
+            class="flex flex-wrap items-end gap-3">
+        {% csrf_token %}
+        <label class="block">
+          <span class="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">% propio</span>
+          <input type="number" step="0.01" name="porcentaje_propio" value="{{ p.porcentaje_ajuste_propio|default_if_none:'' }}"
+                 placeholder="{{ p.porcentaje_global }}"
+                 class="text-sm rounded-lg border border-linestrong bg-field text-body px-3 py-2 w-24 text-right focus:border-brand focus:outline-none">
+        </label>
+        <label class="block">
+          <span class="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">Precio manual (unidad)</span>
+          <input type="number" step="0.01" name="precio_manual" value="{{ p.precio_manual|default_if_none:'' }}"
+                 placeholder="sin fijar"
+                 class="text-sm rounded-lg border border-linestrong bg-field text-body px-3 py-2 w-32 text-right focus:border-brand focus:outline-none">
+        </label>
+        <button type="submit" class="text-sm font-semibold px-4 py-2 rounded-full bg-brand text-white hover:bg-brand-ink shadow-sm">Guardar</button>
+        <span class="text-sm text-muted ml-auto">
+          Precio unitario resultante:
+          <b class="text-ink tabular-nums">
+            {% if p.precio_unitario_a_publicar %}${{ p.precio_unitario_a_publicar }}{% else %}—{% endif %}
+          </b>
+        </span>
+      </form>
+    </div>
+
+    <div class="bg-surface border border-line rounded-2xl p-5">
+      <h2 class="text-sm font-bold text-ink mb-3">Qué sincronizar</h2>
+      <div class="flex gap-6 text-sm">
+        <label class="flex items-center gap-2 cursor-pointer text-body">
+          <input type="checkbox" {% if p.sync_stock %}checked{% endif %} class="accent-brand"
+                 hx-post="{% url 'catalogo_ml:toggle_sync' p.sku %}"
+                 hx-vals='{"campo": "sync_stock"}'
+                 hx-swap="none">
+          Stock
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer text-body">
+          <input type="checkbox" {% if p.sync_price %}checked{% endif %} class="accent-brand"
+                 hx-post="{% url 'catalogo_ml:toggle_sync' p.sku %}"
+                 hx-vals='{"campo": "sync_price"}'
+                 hx-swap="none">
+          Precio
+        </label>
+      </div>
+    </div>
+
+    <div class="bg-surface border border-line rounded-2xl overflow-hidden">
+      <div class="p-5 pb-3">
+        <h2 class="text-sm font-bold text-ink mb-1">Ítems vinculados en Mercado Libre</h2>
+        <p class="text-xs text-muted">
+          Un mismo producto puede estar publicado varias veces (unidad suelta y agrupaciones). Las
+          unidades por ítem multiplican el precio unitario y dividen el stock.
+        </p>
+      </div>
+
+      {% if p.vinculos %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[720px]">
+          <thead>
+            <tr class="bg-appbg text-xs uppercase tracking-wide text-muted">
+              <th class="text-left font-semibold px-4 py-3">Ítem ML</th>
+              <th class="text-left font-semibold px-4 py-3">Estado</th>
+              <th class="text-right font-semibold px-4 py-3">Unidades</th>
+              <th class="text-right font-semibold px-4 py-3">Precio manual</th>
+              <th class="text-right font-semibold px-4 py-3">A publicar</th>
+              <th class="text-right font-semibold px-4 py-3">Stock</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in p.vinculos %}
+            {# Los inputs viven en las celdas pero pertenecen a los <form> declarados debajo de la
+               tabla, vía el atributo form= de HTML5: un <form> no puede envolver <td>s (el
+               navegador lo saca de la tabla y el submit se va sin datos). #}
+            <tr class="border-t border-line">
+              <td class="px-4 py-3">
+                <a href="{{ v.permalink|default:v.url_ml }}" target="_blank" rel="noopener"
+                   class="font-mono text-xs font-semibold text-brand-ink hover:underline">{{ v.ml_item_id }}</a>
+              </td>
+              <td class="px-4 py-3 text-body text-xs">{{ v.estado }}</td>
+              <td class="px-4 py-3 text-right">
+                <input type="number" name="unidades_por_item" value="{{ v.unidades_por_item }}" min="1"
+                       form="vinculo-{{ v.id }}"
+                       class="text-sm rounded-lg border border-linestrong bg-field text-body px-2 py-1 w-20 text-right focus:border-brand focus:outline-none">
+              </td>
+              <td class="px-4 py-3 text-right">
+                <input type="number" step="0.01" name="precio_manual" value="{{ v.precio_manual|default_if_none:'' }}"
+                       placeholder="calculado" form="vinculo-{{ v.id }}"
+                       class="text-sm rounded-lg border border-linestrong bg-field text-body px-2 py-1 w-28 text-right focus:border-brand focus:outline-none">
+              </td>
+              <td class="px-4 py-3 text-right text-ink font-semibold tabular-nums">
+                {% if v.precio_a_publicar %}${{ v.precio_a_publicar }}{% else %}—{% endif %}
+              </td>
+              <td class="px-4 py-3 text-right text-body tabular-nums">{{ v.stock_a_publicar }}</td>
+              <td class="px-4 py-3 text-right whitespace-nowrap">
+                <button type="submit" form="vinculo-{{ v.id }}"
+                        class="text-sm font-semibold text-brand-ink hover:bg-brand-soft px-2.5 py-1.5 rounded-lg">Guardar</button>
+                <button type="submit" form="desvincular-{{ v.id }}"
+                        class="text-sm font-semibold text-rech-ink hover:bg-rech-bg px-2.5 py-1.5 rounded-lg">Desvincular</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% for v in p.vinculos %}
+      <form method="post" action="{% url 'catalogo_ml:guardar_vinculo' v.id %}" id="vinculo-{{ v.id }}">
+        {% csrf_token %}
+        <input type="hidden" name="sku" value="{{ p.sku }}">
+      </form>
+      <form method="post" action="{% url 'catalogo_ml:desvincular' v.id %}" id="desvincular-{{ v.id }}"
+            onsubmit="return confirm('¿Desvincular {{ v.ml_item_id }}? No se modifica nada en Mercado Libre, solo deja de sincronizarse.')">
+        {% csrf_token %}
+      </form>
+      {% endfor %}
+      {% else %}
+      <p class="px-5 pb-5 text-sm text-muted">
+        Todavía no hay ningún ítem de ML vinculado a este SKU.
+      </p>
+      {% endif %}
+    </div>
+
+    <div class="bg-surface border border-line rounded-2xl p-5">
+      <h2 class="text-sm font-bold text-ink mb-1">Vincular un ítem existente de Mercado Libre</h2>
+      <p class="text-xs text-muted mb-4">
+        Los ítems ya publicados no tienen el SKU de SAP cargado, así que el match automático no los
+        encuentra — buscalos por título y vinculalos a mano.
+      </p>
+
+      <form method="get" class="flex flex-wrap items-end gap-3 mb-4">
+        <label class="block">
+          <span class="block text-xs font-semibold uppercase tracking-wide text-muted mb-1">Buscar en mi cuenta de ML</span>
+          <input type="text" name="buscar_ml" value="{{ texto_busqueda|default:'' }}"
+                 placeholder="ej. probeta graduada"
+                 class="text-sm rounded-lg border border-linestrong bg-field text-body px-3 py-2 w-72 focus:border-brand focus:outline-none">
+        </label>
+        <button type="submit" class="text-sm font-semibold px-4 py-2 rounded-full bg-brand text-white hover:bg-brand-ink shadow-sm">Buscar</button>
+      </form>
+
+      {% if candidatos %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[720px]">
+          <thead>
+            <tr class="bg-appbg text-xs uppercase tracking-wide text-muted">
+              <th class="text-left font-semibold px-3 py-2">Título en ML</th>
+              <th class="text-right font-semibold px-3 py-2">Precio ML</th>
+              <th class="text-right font-semibold px-3 py-2">Stock</th>
+              <th class="text-right font-semibold px-3 py-2">Unidades</th>
+              <th class="px-3 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in candidatos %}
+            <tr class="border-t border-line">
+              <td class="px-3 py-2">
+                <a href="{{ c.permalink }}" target="_blank" rel="noopener" class="text-body hover:text-brand-ink hover:underline">{{ c.titulo }}</a>
+                <span class="block font-mono text-xs text-muted">{{ c.ml_item_id }}</span>
+                {% if c.vinculado_a %}
+                <span class="inline-block mt-1 text-xs font-semibold text-pend-ink bg-pend-bg px-2 py-0.5 rounded-full">
+                  Ya vinculado a {{ c.vinculado_a }}
+                </span>
+                {% endif %}
+              </td>
+              <td class="px-3 py-2 text-right text-body tabular-nums">{% if c.precio %}${{ c.precio }}{% else %}—{% endif %}</td>
+              <td class="px-3 py-2 text-right text-body tabular-nums">{{ c.stock|default_if_none:"—" }}</td>
+              <td class="px-3 py-2 text-right">
+                <input type="number" name="unidades_por_item" value="1" min="1" form="candidato-{{ forloop.counter }}"
+                       class="text-sm rounded-lg border border-linestrong bg-field text-body px-2 py-1 w-20 text-right focus:border-brand focus:outline-none">
+              </td>
+              <td class="px-3 py-2 text-right">
+                <button type="submit" form="candidato-{{ forloop.counter }}"
+                        class="text-sm font-semibold px-3 py-1.5 rounded-lg border border-linestrong text-body hover:bg-appbg whitespace-nowrap">Vincular</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% for c in candidatos %}
+      <form method="post" action="{% url 'catalogo_ml:vincular_a_mano' p.sku %}" id="candidato-{{ forloop.counter }}">
+        {% csrf_token %}
+        <input type="hidden" name="ml_item_id" value="{{ c.ml_item_id }}">
+      </form>
+      {% endfor %}
+      {% elif texto_busqueda %}
+      <p class="text-sm text-muted">Sin resultados para “{{ texto_busqueda }}”.</p>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endblock %}

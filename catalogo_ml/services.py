@@ -9,7 +9,7 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from django.utils import timezone
 
-from integraciones import ml_client, stockservice_client
+from integraciones import ml_client, stockservice_client, woo_client
 
 from .models import ConfiguracionSyncML, MLItemMap, MLToken, PerfilSellerML, SkuSyncConfig
 
@@ -268,6 +268,144 @@ def vincular_si_existe_en_ml(sku, access_token, seller_id):
     # único que identifica a UNO es el ítem de ML.
     mapa, _creado = MLItemMap.objects.get_or_create(ml_item_id=item_id, defaults={"sku": sku})
     return mapa
+
+
+def buscar_candidatos_para_vincular(texto):
+    """
+    HU-CM2.6 — busca ítems del vendedor en ML por texto para elegir a mano cuál corresponde a un
+    SKU. Marca los que ya están vinculados (a este SKU o a otro) para no vincular dos veces lo
+    mismo por error.
+    """
+    access_token = obtener_token_valido()
+    seller_id = MLToken.objects.first().ml_user_id
+
+    item_ids = ml_client.buscar_items_por_texto(access_token, seller_id, texto)
+    if not item_ids:
+        return []
+
+    ya_vinculados = dict(MLItemMap.objects.filter(ml_item_id__in=item_ids).values_list("ml_item_id", "sku"))
+
+    candidatos = []
+    for item in ml_client.obtener_items(access_token, item_ids):
+        candidatos.append({
+            "ml_item_id": item.get("id"),
+            "titulo": item.get("title") or "",
+            "precio": item.get("price"),
+            "stock": item.get("available_quantity"),
+            "estado": item.get("status"),
+            "permalink": item.get("permalink"),
+            "vinculado_a": ya_vinculados.get(item.get("id")),
+        })
+    return candidatos
+
+
+def vincular_a_mano(sku, ml_item_id, unidades_por_item):
+    """
+    HU-CM2.6 — crea el vínculo elegido por el usuario. Idempotente por `ml_item_id`: si ese ítem ya
+    estaba vinculado, se actualiza (permite corregir un vínculo mal hecho o cambiar las unidades).
+    """
+    vinculo, _creado = MLItemMap.objects.update_or_create(
+        ml_item_id=ml_item_id,
+        defaults={"sku": sku, "unidades_por_item": unidades_por_item},
+    )
+    return vinculo
+
+
+def guardar_vinculo(vinculo_id, unidades_por_item, precio_manual):
+    """HU-CM1.7/2.7 — edita unidades y precio manual de un vínculo ya existente."""
+    vinculo = MLItemMap.objects.filter(id=vinculo_id).first()
+    if vinculo is None:
+        return None
+    vinculo.unidades_por_item = unidades_por_item
+    vinculo.precio_manual = precio_manual
+    vinculo.save()
+    return vinculo
+
+
+def desvincular(vinculo_id):
+    """
+    HU-CM2.6 — borra el vínculo (no toca nada en ML, solo deja de sincronizarlo desde acá).
+    Devuelve el SKU que tenía, para poder volver a su pantalla.
+    """
+    vinculo = MLItemMap.objects.filter(id=vinculo_id).first()
+    if vinculo is None:
+        return None
+    sku = vinculo.sku
+    vinculo.delete()
+    return sku
+
+
+def armar_detalle_producto(sku):
+    """
+    HU-CM1.6 — todo lo que muestra la pantalla individual: datos de SAP (vía Stock-Service), foto
+    (vía WooCommerce), configuración de sync/precio y los vínculos con ML ya resueltos a precio
+    final. Devuelve None si el SKU no existe en el catálogo.
+
+    La foto es best-effort: si WooCommerce no responde, la pantalla igual tiene que servir para
+    revisar precios y vínculos.
+    """
+    item = obtener_item_stockservice_por_sku(sku)
+    if item is None:
+        return None
+
+    config = SkuSyncConfig.objects.filter(sku=sku).first()
+    precio_neto = item.get("price")
+
+    vinculos = []
+    for vinculo in MLItemMap.objects.filter(sku=sku).order_by("unidades_por_item"):
+        vinculos.append({
+            "id": vinculo.id,
+            "ml_item_id": vinculo.ml_item_id,
+            "url_ml": f"https://articulo.mercadolibre.cl/{vinculo.ml_item_id}",
+            "unidades_por_item": vinculo.unidades_por_item,
+            "precio_manual": vinculo.precio_manual,
+            "precio_a_publicar": resolver_precio_ml(precio_neto, config, vinculo) if precio_neto is not None else None,
+            "stock_a_publicar": resolver_stock_ml(sum(item.get(b) or 0 for b in _BODEGAS_WEB), vinculo),
+            "estado": vinculo.get_status_display(),
+            "ultimo_precio_sincronizado": vinculo.ultimo_precio_sincronizado,
+        })
+
+    try:
+        fotos = woo_client.obtener_fotos(sku)
+    except Exception:
+        logger.warning("No se pudieron traer las fotos de WooCommerce para %s", sku, exc_info=True)
+        fotos = []
+
+    return {
+        "sku": sku,
+        "nombre": item.get("name") or "",
+        "precio_neto": precio_neto,
+        "stock_web": sum(item.get(bodega) or 0 for bodega in _BODEGAS_WEB),
+        "stock_por_bodega": {b: item.get(b) or 0 for b in _BODEGAS_WEB},
+        "sync_stock": config.sync_stock if config else False,
+        "sync_price": config.sync_price if config else False,
+        "porcentaje_ajuste_propio": config.porcentaje_ajuste_propio if config else None,
+        "precio_manual": config.precio_manual if config else None,
+        "porcentaje_global": obtener_porcentaje_ajuste(),
+        "precio_unitario_a_publicar": _redondear_clp(resolver_precio_unitario(precio_neto, config)) if precio_neto is not None else None,
+        "vinculos": vinculos,
+        "foto": fotos[0] if fotos else None,
+    }
+
+
+def guardar_precio_producto(sku, porcentaje_propio, precio_manual, usuario):
+    """HU-CM1.7 — guarda las excepciones de precio del producto. None en un campo = "usar el nivel de arriba"."""
+    config, _creado = SkuSyncConfig.objects.get_or_create(sku=sku)
+    config.porcentaje_ajuste_propio = porcentaje_propio
+    config.precio_manual = precio_manual
+    config.updated_by = usuario
+    config.save()
+    return config
+
+
+def aplicar_porcentaje_masivo(skus, porcentaje, usuario):
+    """HU-CM1.8 — fija el mismo % propio a varios productos. No toca el global."""
+    for sku in skus:
+        config, _creado = SkuSyncConfig.objects.get_or_create(sku=sku)
+        config.porcentaje_ajuste_propio = porcentaje
+        config.updated_by = usuario
+        config.save()
+    return len(skus)
 
 
 def skus_que_cumplen_filtro(sincronizado=False, solo_sync_stock=False, solo_sync_precio=False):

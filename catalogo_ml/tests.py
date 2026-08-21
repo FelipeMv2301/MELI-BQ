@@ -1032,3 +1032,288 @@ class FiltrosEnLaGrillaViewTests(TestCase):
 
         self.assertContains(respuesta, "ML000111")
         self.assertNotContains(respuesta, "ML000222")
+
+
+_ITEM_STOCKSERVICE = {
+    "sku": "ML000111", "name": "Tubo de Ensayo", "price": 211, "stock_01": 250, "stock_11": 0,
+}
+
+
+def _catalogo_de_un_item(**overrides):
+    item = {**_ITEM_STOCKSERVICE, **overrides}
+    return {"total": 1, "limit": 50, "offset": 0, "items": [item]}
+
+
+@patch("catalogo_ml.services.woo_client.obtener_fotos", return_value=[])
+@patch("catalogo_ml.services.stockservice_client.obtener_catalogo", return_value=_catalogo_de_un_item())
+class DetalleProductoViewTests(TestCase):
+    """HU-CM1.6 — pantalla individual del producto."""
+
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+
+    def test_requiere_login(self, _catalogo_mock, _fotos_mock):
+        self.client.logout()
+        respuesta = self.client.get("/catalogo/ML000111/")
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertIn("/accounts/login/", respuesta.url)
+
+    def test_muestra_los_datos_de_sap(self, _catalogo_mock, _fotos_mock):
+        respuesta = self.client.get("/catalogo/ML000111/")
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "ML000111")
+        self.assertContains(respuesta, "Tubo de Ensayo")
+        self.assertContains(respuesta, "211")
+
+    def test_sku_inexistente_da_404(self, catalogo_mock, _fotos_mock):
+        catalogo_mock.return_value = {"total": 0, "limit": 50, "offset": 0, "items": []}
+
+        respuesta = self.client.get("/catalogo/NOEXISTE/")
+
+        self.assertEqual(respuesta.status_code, 404)
+
+    def test_muestra_la_foto_de_woocommerce(self, _catalogo_mock, fotos_mock):
+        fotos_mock.return_value = ["https://bioquimica.cl/foto.jpg"]
+
+        respuesta = self.client.get("/catalogo/ML000111/")
+
+        self.assertContains(respuesta, "https://bioquimica.cl/foto.jpg")
+
+    def test_si_woocommerce_falla_la_pantalla_igual_carga(self, _catalogo_mock, fotos_mock):
+        fotos_mock.side_effect = Exception("Woo caído")
+
+        respuesta = self.client.get("/catalogo/ML000111/")
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "Sin foto en la web")
+
+    def test_lista_los_vinculos_con_su_precio_y_stock_resuelto(self, _catalogo_mock, _fotos_mock):
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC111", unidades_por_item=1)
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC222", unidades_por_item=100)
+
+        respuesta = self.client.get("/catalogo/ML000111/")
+        vinculos = respuesta.context["p"]["vinculos"]
+
+        self.assertEqual(len(vinculos), 2)
+        # Unidad suelta: $211 y los 250 de stock. Pack de 100: $21.100 y 2 packs completos.
+        self.assertEqual(vinculos[0]["precio_a_publicar"], 211)
+        self.assertEqual(vinculos[0]["stock_a_publicar"], 250)
+        self.assertEqual(vinculos[1]["precio_a_publicar"], 21100)
+        self.assertEqual(vinculos[1]["stock_a_publicar"], 2)
+
+    def test_sin_vinculos_lo_dice_explicitamente(self, _catalogo_mock, _fotos_mock):
+        respuesta = self.client.get("/catalogo/ML000111/")
+        self.assertContains(respuesta, "Todavía no hay ningún ítem de ML vinculado")
+
+
+@patch("catalogo_ml.services.woo_client.obtener_fotos", return_value=[])
+@patch("catalogo_ml.services.stockservice_client.obtener_catalogo", return_value=_catalogo_de_un_item())
+class GuardarPrecioProductoViewTests(TestCase):
+    """HU-CM1.7 — % propio y precio manual del producto."""
+
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+
+    def test_guarda_el_porcentaje_propio(self, _catalogo_mock, _fotos_mock):
+        respuesta = self.client.post("/catalogo/ML000111/precio/", {"porcentaje_propio": "25"})
+
+        self.assertRedirects(respuesta, "/catalogo/ML000111/")
+        self.assertEqual(SkuSyncConfig.objects.get(sku="ML000111").porcentaje_ajuste_propio, Decimal("25"))
+
+    def test_guarda_el_precio_manual(self, _catalogo_mock, _fotos_mock):
+        self.client.post("/catalogo/ML000111/precio/", {"precio_manual": "999"})
+        self.assertEqual(SkuSyncConfig.objects.get(sku="ML000111").precio_manual, Decimal("999"))
+
+    def test_campo_vacio_limpia_el_valor_no_es_un_error(self, _catalogo_mock, _fotos_mock):
+        SkuSyncConfig.objects.create(sku="ML000111", porcentaje_ajuste_propio=Decimal("25"))
+
+        self.client.post("/catalogo/ML000111/precio/", {"porcentaje_propio": "", "precio_manual": ""})
+
+        config = SkuSyncConfig.objects.get(sku="ML000111")
+        self.assertIsNone(config.porcentaje_ajuste_propio)
+        self.assertIsNone(config.precio_manual)
+
+    def test_valor_no_numerico_no_guarda_y_avisa(self, _catalogo_mock, _fotos_mock):
+        respuesta = self.client.post("/catalogo/ML000111/precio/", {"porcentaje_propio": "abc"})
+
+        self.assertFalse(SkuSyncConfig.objects.filter(sku="ML000111").exists())
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("no es un número válido" in m for m in mensajes))
+
+    def test_menos_cien_por_ciento_se_rechaza(self, _catalogo_mock, _fotos_mock):
+        respuesta = self.client.post("/catalogo/ML000111/precio/", {"porcentaje_propio": "-100"})
+
+        self.assertFalse(SkuSyncConfig.objects.filter(sku="ML000111").exists())
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("no puede ser -100%" in m for m in mensajes))
+
+
+class VincularAManoViewTests(TestCase):
+    """HU-CM2.6 — vinculación manual, el camino principal para poblar MLItemMap."""
+
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+
+    def test_crea_el_vinculo_con_sus_unidades(self):
+        respuesta = self.client.post(
+            "/catalogo/ML000111/vincular/", {"ml_item_id": "MLC999", "unidades_por_item": "100"}
+        )
+
+        self.assertRedirects(respuesta, "/catalogo/ML000111/", fetch_redirect_response=False)
+        vinculo = MLItemMap.objects.get(ml_item_id="MLC999")
+        self.assertEqual(vinculo.sku, "ML000111")
+        self.assertEqual(vinculo.unidades_por_item, 100)
+
+    def test_sin_ml_item_id_da_400(self):
+        respuesta = self.client.post("/catalogo/ML000111/vincular/", {"unidades_por_item": "1"})
+        self.assertEqual(respuesta.status_code, 400)
+
+    def test_unidades_cero_o_negativas_se_rechazan(self):
+        respuesta = self.client.post(
+            "/catalogo/ML000111/vincular/", {"ml_item_id": "MLC999", "unidades_por_item": "0"}
+        )
+
+        self.assertFalse(MLItemMap.objects.exists())
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("1 o más" in m for m in mensajes))
+
+    def test_revincular_el_mismo_item_a_otro_sku_lo_mueve_no_duplica(self):
+        MLItemMap.objects.create(sku="ML000AAA", ml_item_id="MLC999")
+
+        self.client.post("/catalogo/ML000111/vincular/", {"ml_item_id": "MLC999", "unidades_por_item": "1"})
+
+        self.assertEqual(MLItemMap.objects.count(), 1)
+        self.assertEqual(MLItemMap.objects.get(ml_item_id="MLC999").sku, "ML000111")
+
+
+class GuardarYDesvincularViewTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+        self.vinculo = MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC999")
+
+    def test_guarda_unidades_y_precio_manual_del_vinculo(self):
+        self.client.post(
+            f"/catalogo/vinculo/{self.vinculo.id}/guardar/",
+            {"sku": "ML000111", "unidades_por_item": "50", "precio_manual": "10550"},
+        )
+
+        self.vinculo.refresh_from_db()
+        self.assertEqual(self.vinculo.unidades_por_item, 50)
+        self.assertEqual(self.vinculo.precio_manual, Decimal("10550"))
+
+    def test_precio_manual_vacio_lo_deja_calculado(self):
+        self.vinculo.precio_manual = Decimal("999")
+        self.vinculo.save()
+
+        self.client.post(
+            f"/catalogo/vinculo/{self.vinculo.id}/guardar/",
+            {"sku": "ML000111", "unidades_por_item": "1", "precio_manual": ""},
+        )
+
+        self.vinculo.refresh_from_db()
+        self.assertIsNone(self.vinculo.precio_manual)
+
+    def test_vinculo_inexistente_da_404(self):
+        respuesta = self.client.post(
+            "/catalogo/vinculo/99999/guardar/", {"sku": "ML000111", "unidades_por_item": "1"}
+        )
+        self.assertEqual(respuesta.status_code, 404)
+
+    def test_desvincular_borra_solo_ese_vinculo(self):
+        otro = MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC888")
+
+        respuesta = self.client.post(f"/catalogo/vinculo/{self.vinculo.id}/borrar/")
+
+        self.assertRedirects(respuesta, "/catalogo/ML000111/", fetch_redirect_response=False)
+        self.assertFalse(MLItemMap.objects.filter(id=self.vinculo.id).exists())
+        self.assertTrue(MLItemMap.objects.filter(id=otro.id).exists())
+
+    def test_desvincular_algo_inexistente_da_404(self):
+        respuesta = self.client.post("/catalogo/vinculo/99999/borrar/")
+        self.assertEqual(respuesta.status_code, 404)
+
+
+class AplicarPorcentajeMasivoViewTests(TestCase):
+    """HU-CM1.8 — % propio a varios seleccionados de una sola acción."""
+
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+
+    @patch("catalogo_ml.views.stockservice_client.obtener_catalogo", return_value=_catalogo_de_un_item())
+    def test_aplica_el_mismo_porcentaje_a_todos(self, _catalogo_mock):
+        respuesta = self.client.post(
+            "/catalogo/ml/precio-masivo/",
+            {"skus": ["ML000111", "ML000222"], "porcentaje_masivo": "30"},
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(SkuSyncConfig.objects.get(sku="ML000111").porcentaje_ajuste_propio, Decimal("30"))
+        self.assertEqual(SkuSyncConfig.objects.get(sku="ML000222").porcentaje_ajuste_propio, Decimal("30"))
+
+    @patch("catalogo_ml.views.stockservice_client.obtener_catalogo", return_value=_catalogo_de_un_item())
+    def test_no_toca_el_porcentaje_global(self, _catalogo_mock):
+        services.guardar_porcentaje_ajuste(Decimal("5"), usuario=None)
+
+        self.client.post("/catalogo/ml/precio-masivo/", {"skus": ["ML000111"], "porcentaje_masivo": "30"})
+
+        self.assertEqual(services.obtener_porcentaje_ajuste(), Decimal("5"))
+
+    def test_sin_seleccion_da_400(self):
+        respuesta = self.client.post("/catalogo/ml/precio-masivo/", {"porcentaje_masivo": "30"})
+        self.assertEqual(respuesta.status_code, 400)
+
+    def test_sin_porcentaje_avisa_y_no_guarda(self):
+        respuesta = self.client.post("/catalogo/ml/precio-masivo/", {"skus": ["ML000111"]})
+
+        self.assertFalse(SkuSyncConfig.objects.filter(sku="ML000111").exists())
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("Escribí un porcentaje" in m for m in mensajes))
+
+
+class BuscarCandidatosParaVincularTests(TestCase):
+    def setUp(self):
+        MLToken.objects.create(
+            access_token="vigente", refresh_token="TG-1",
+            expires_at=timezone.now() + timedelta(hours=5), ml_user_id=999,
+        )
+
+    @patch("catalogo_ml.services.ml_client.obtener_items")
+    @patch("catalogo_ml.services.ml_client.buscar_items_por_texto")
+    def test_devuelve_titulo_y_precio_de_cada_candidato(self, buscar_mock, detalle_mock):
+        buscar_mock.return_value = ["MLC111"]
+        detalle_mock.return_value = [
+            {"id": "MLC111", "title": "Probeta Graduada 100 Ml", "price": 5000,
+             "available_quantity": 7, "status": "active", "permalink": "https://ml/x"}
+        ]
+
+        candidatos = services.buscar_candidatos_para_vincular("probeta")
+
+        buscar_mock.assert_called_once_with("vigente", 999, "probeta")
+        self.assertEqual(candidatos[0]["titulo"], "Probeta Graduada 100 Ml")
+        self.assertEqual(candidatos[0]["precio"], 5000)
+        self.assertIsNone(candidatos[0]["vinculado_a"])
+
+    @patch("catalogo_ml.services.ml_client.obtener_items")
+    @patch("catalogo_ml.services.ml_client.buscar_items_por_texto")
+    def test_marca_los_que_ya_estan_vinculados(self, buscar_mock, detalle_mock):
+        MLItemMap.objects.create(sku="ML000AAA", ml_item_id="MLC111")
+        buscar_mock.return_value = ["MLC111"]
+        detalle_mock.return_value = [{"id": "MLC111", "title": "Probeta", "price": 1}]
+
+        candidatos = services.buscar_candidatos_para_vincular("probeta")
+
+        self.assertEqual(candidatos[0]["vinculado_a"], "ML000AAA")
+
+    @patch("catalogo_ml.services.ml_client.obtener_items")
+    @patch("catalogo_ml.services.ml_client.buscar_items_por_texto")
+    def test_sin_resultados_no_pide_el_detalle(self, buscar_mock, detalle_mock):
+        buscar_mock.return_value = []
+
+        self.assertEqual(services.buscar_candidatos_para_vincular("nada"), [])
+        detalle_mock.assert_not_called()

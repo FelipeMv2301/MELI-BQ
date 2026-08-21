@@ -233,6 +233,154 @@ def toggle_masivo(request):
     return render(request, "catalogo_ml/_tabla.html", contexto)
 
 
+def _leer_decimal_opcional(valor_crudo):
+    """
+    Devuelve (decimal_o_None, error). Vacío es válido y significa "sin valor" (usar el nivel de
+    arriba) — no es lo mismo que un número mal escrito.
+    """
+    valor_crudo = (valor_crudo or "").strip()
+    if not valor_crudo:
+        return None, None
+    try:
+        return Decimal(valor_crudo), None
+    except (InvalidOperation, TypeError):
+        return None, f"'{valor_crudo}' no es un número válido."
+
+
+@login_required
+def detalle(request, sku):
+    """HU-CM1.6 — pantalla individual del producto: foto, precios, sync y vínculos con ML."""
+    detalle_producto = services.armar_detalle_producto(sku)
+    if detalle_producto is None:
+        return HttpResponseNotFound(f"SKU {sku} no encontrado en Stock-Service")
+
+    contexto = {"p": detalle_producto, "hay_token_ml": services.hay_token_ml()}
+
+    texto_busqueda = request.GET.get("buscar_ml", "").strip()
+    if texto_busqueda:
+        contexto["texto_busqueda"] = texto_busqueda
+        try:
+            contexto["candidatos"] = services.buscar_candidatos_para_vincular(texto_busqueda)
+        except services.TokenMLNoConfigurado:
+            messages.error(request, "Conectá con Mercado Libre antes de buscar ítems para vincular.")
+        except Exception as exc:
+            messages.error(request, f"No se pudo buscar en Mercado Libre: {exc}")
+
+    return render(request, "catalogo_ml/detalle.html", contexto)
+
+
+@login_required
+@require_POST
+def guardar_precio_producto(request, sku):
+    """HU-CM1.7 — guarda el % propio y/o el precio manual del producto."""
+    porcentaje, error_porcentaje = _leer_decimal_opcional(request.POST.get("porcentaje_propio"))
+    precio, error_precio = _leer_decimal_opcional(request.POST.get("precio_manual"))
+
+    error = error_porcentaje or error_precio
+    if error:
+        messages.error(request, error)
+        return redirect("catalogo_ml:detalle", sku=sku)
+
+    if porcentaje is not None and porcentaje <= -100:
+        messages.error(request, "El porcentaje no puede ser -100% o menos.")
+        return redirect("catalogo_ml:detalle", sku=sku)
+
+    services.guardar_precio_producto(sku, porcentaje, precio, request.user)
+    messages.success(request, "Precio del producto actualizado.")
+    return redirect("catalogo_ml:detalle", sku=sku)
+
+
+@login_required
+@require_POST
+def vincular_a_mano(request, sku):
+    """HU-CM2.6 — vincula el ítem de ML elegido a mano, con su factor de unidades."""
+    ml_item_id = request.POST.get("ml_item_id", "").strip()
+    if not ml_item_id:
+        return HttpResponseBadRequest("falta ml_item_id")
+
+    try:
+        unidades = int(request.POST.get("unidades_por_item", 1))
+    except ValueError:
+        messages.error(request, "Las unidades por ítem deben ser un número entero.")
+        return redirect("catalogo_ml:detalle", sku=sku)
+
+    if unidades < 1:
+        messages.error(request, "Las unidades por ítem deben ser 1 o más.")
+        return redirect("catalogo_ml:detalle", sku=sku)
+
+    services.vincular_a_mano(sku, ml_item_id, unidades)
+    messages.success(request, f"Ítem {ml_item_id} vinculado a {sku}.")
+    return redirect("catalogo_ml:detalle", sku=sku)
+
+
+@login_required
+@require_POST
+def guardar_vinculo(request, vinculo_id):
+    """HU-CM1.7/2.7 — edita unidades y precio manual de un vínculo existente."""
+    sku = request.POST.get("sku", "")
+    precio, error = _leer_decimal_opcional(request.POST.get("precio_manual"))
+    if error:
+        messages.error(request, error)
+        return redirect("catalogo_ml:detalle", sku=sku)
+
+    try:
+        unidades = int(request.POST.get("unidades_por_item", 1))
+    except ValueError:
+        messages.error(request, "Las unidades por ítem deben ser un número entero.")
+        return redirect("catalogo_ml:detalle", sku=sku)
+
+    if unidades < 1:
+        messages.error(request, "Las unidades por ítem deben ser 1 o más.")
+        return redirect("catalogo_ml:detalle", sku=sku)
+
+    if services.guardar_vinculo(vinculo_id, unidades, precio) is None:
+        return HttpResponseNotFound("vínculo no encontrado")
+
+    messages.success(request, "Vínculo actualizado.")
+    return redirect("catalogo_ml:detalle", sku=sku)
+
+
+@login_required
+@require_POST
+def desvincular(request, vinculo_id):
+    """HU-CM2.6 — borra el vínculo. No toca nada en ML, solo deja de sincronizarse desde acá."""
+    sku = services.desvincular(vinculo_id)
+    if sku is None:
+        return HttpResponseNotFound("vínculo no encontrado")
+
+    messages.success(request, "Vínculo eliminado (no se modificó nada en Mercado Libre).")
+    return redirect("catalogo_ml:detalle", sku=sku)
+
+
+@login_required
+@require_POST
+def aplicar_porcentaje_masivo(request):
+    """HU-CM1.8 — fija el mismo % propio a todos los SKU seleccionados."""
+    skus = request.POST.getlist("skus")
+    if not skus:
+        return HttpResponseBadRequest("no hay productos seleccionados")
+
+    porcentaje, error = _leer_decimal_opcional(request.POST.get("porcentaje_masivo"))
+    if error:
+        messages.error(request, error)
+        return redirect("catalogo_ml:index")
+    if porcentaje is None:
+        messages.error(request, "Escribí un porcentaje antes de aplicarlo.")
+        return redirect("catalogo_ml:index")
+    if porcentaje <= -100:
+        messages.error(request, "El porcentaje no puede ser -100% o menos.")
+        return redirect("catalogo_ml:index")
+
+    cantidad = services.aplicar_porcentaje_masivo(skus, porcentaje, request.user)
+    messages.success(request, f"{porcentaje}% aplicado a {cantidad} producto{'s' if cantidad != 1 else ''}.")
+
+    busqueda = request.POST.get("q", "").strip()
+    pagina = _leer_pagina(request.POST)
+    filtros = _leer_filtros(request.POST)
+    contexto = _armar_contexto_tabla(busqueda, pagina, filtros)
+    return render(request, "catalogo_ml/_tabla.html", contexto)
+
+
 @login_required
 @require_POST
 def vincular_masivo(request):

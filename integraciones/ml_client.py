@@ -103,6 +103,42 @@ def buscar_item_por_sku(access_token, seller_id, sku):
     return None
 
 
+def buscar_items_por_texto(access_token, seller_id, texto, limit=20):
+    """
+    HU-CM2.6 — busca ítems del vendedor por texto libre, para vincular a mano cuando el SKU no
+    está cargado en ML (el caso real de bioquimica.cl). Devuelve la lista de item_id.
+    """
+    respuesta = requests.get(
+        f"{BASE_URL}/users/{seller_id}/items/search",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={"q": texto, "limit": limit},
+        timeout=15,
+    )
+    respuesta.raise_for_status()
+    return respuesta.json().get("results", [])
+
+
+def obtener_items(access_token, item_ids):
+    """
+    Detalle de varios ítems en una sola llamada (`GET /items?ids=`) — necesario para mostrar título
+    y precio en la pantalla de vinculación sin hacer N requests.
+
+    La respuesta es una lista de sobres `{"code": 200, "body": {...}}`, no los ítems directo: se
+    devuelven solo los `body` de los que vinieron OK.
+    """
+    if not item_ids:
+        return []
+
+    respuesta = requests.get(
+        f"{BASE_URL}/items",
+        headers={"Authorization": f"Bearer {access_token}"},
+        params={"ids": ",".join(item_ids)},
+        timeout=15,
+    )
+    respuesta.raise_for_status()
+    return [sobre["body"] for sobre in respuesta.json() if sobre.get("code") == 200]
+
+
 def publicar_item(access_token, payload):
     """HU-CM2.2 — POST /items."""
     raise NotImplementedError

@@ -207,3 +207,51 @@ class BuscarItemPorSkuTests(SimpleTestCase):
 
         self.assertIsNone(resultado)
         self.assertEqual(get_mock.call_count, 2)
+
+
+class BuscarItemsPorTextoTests(SimpleTestCase):
+    @patch("integraciones.ml_client.requests.get")
+    def test_manda_el_texto_como_q(self, get_mock):
+        get_mock.return_value = _respuesta_mock({"results": ["MLC111", "MLC222"]})
+
+        resultado = ml_client.buscar_items_por_texto("APP_USR-abc", 999, "probeta")
+
+        self.assertEqual(resultado, ["MLC111", "MLC222"])
+        self.assertEqual(get_mock.call_args.args[0], "https://api.mercadolibre.com/users/999/items/search")
+        self.assertEqual(get_mock.call_args.kwargs["params"], {"q": "probeta", "limit": 20})
+
+    @patch("integraciones.ml_client.requests.get")
+    def test_sin_resultados_devuelve_lista_vacia(self, get_mock):
+        get_mock.return_value = _respuesta_mock({})
+        self.assertEqual(ml_client.buscar_items_por_texto("APP_USR-abc", 999, "nada"), [])
+
+
+class ObtenerItemsTests(SimpleTestCase):
+    @patch("integraciones.ml_client.requests.get")
+    def test_pide_los_ids_juntos_y_desenvuelve_los_body(self, get_mock):
+        get_mock.return_value = _respuesta_mock([
+            {"code": 200, "body": {"id": "MLC111", "title": "Probeta"}},
+            {"code": 200, "body": {"id": "MLC222", "title": "Mechero"}},
+        ])
+
+        resultado = ml_client.obtener_items("APP_USR-abc", ["MLC111", "MLC222"])
+
+        self.assertEqual(get_mock.call_args.kwargs["params"], {"ids": "MLC111,MLC222"})
+        self.assertEqual([i["title"] for i in resultado], ["Probeta", "Mechero"])
+
+    @patch("integraciones.ml_client.requests.get")
+    def test_descarta_los_que_no_vinieron_ok(self, get_mock):
+        get_mock.return_value = _respuesta_mock([
+            {"code": 200, "body": {"id": "MLC111", "title": "Probeta"}},
+            {"code": 404, "body": {"error": "not_found"}},
+        ])
+
+        resultado = ml_client.obtener_items("APP_USR-abc", ["MLC111", "MLC999"])
+
+        self.assertEqual(len(resultado), 1)
+        self.assertEqual(resultado[0]["id"], "MLC111")
+
+    @patch("integraciones.ml_client.requests.get")
+    def test_lista_vacia_no_llama_a_la_api(self, get_mock):
+        self.assertEqual(ml_client.obtener_items("APP_USR-abc", []), [])
+        get_mock.assert_not_called()
