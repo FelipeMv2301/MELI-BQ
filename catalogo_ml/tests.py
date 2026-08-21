@@ -92,10 +92,21 @@ class SkuSyncConfigTests(TestCase):
 
 
 class MLItemMapTests(TestCase):
-    def test_sku_y_ml_item_id_son_unicos(self):
+    def test_el_mismo_item_de_ml_no_puede_vincularse_dos_veces(self):
         MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC123456789")
         with self.assertRaises(IntegrityError):
-            MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC999999999")
+            MLItemMap.objects.create(sku="ML000222", ml_item_id="MLC123456789")
+
+    def test_un_sku_puede_tener_varios_items_de_ml(self):
+        """HU-CM2.7 — unidad suelta + pack de 100 del mismo SKU."""
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC111", unidades_por_item=1)
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC222", unidades_por_item=100)
+
+        self.assertEqual(MLItemMap.objects.filter(sku="ML000111").count(), 2)
+
+    def test_unidades_por_item_default_es_1(self):
+        item = MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC123456789")
+        self.assertEqual(item.unidades_por_item, 1)
 
     def test_status_default_es_active(self):
         item = MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC123456789")
@@ -104,6 +115,10 @@ class MLItemMapTests(TestCase):
     def test_str_incluye_sku_y_item_id(self):
         item = MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC123456789")
         self.assertEqual(str(item), "ML000111 -> MLC123456789")
+
+    def test_str_de_un_pack_muestra_las_unidades(self):
+        item = MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC999", unidades_por_item=100)
+        self.assertEqual(str(item), "ML000111 x100 -> MLC999")
 
 
 class ConstruirFilaCatalogoTests(TestCase):
@@ -121,43 +136,56 @@ class ConstruirFilaCatalogoTests(TestCase):
         base.update(overrides)
         return base
 
-    def test_sin_config_ni_mapa_queda_no_sincronizado(self):
-        fila = services.construir_fila_catalogo(self._item_stockservice(), None, None)
+    def test_sin_config_ni_vinculos_queda_no_sincronizado(self):
+        fila = services.construir_fila_catalogo(self._item_stockservice(), None, [])
         self.assertFalse(fila["sync_stock"])
         self.assertFalse(fila["sync_price"])
         self.assertEqual(fila["estado"], "No sincronizado")
         self.assertIsNone(fila["ml_item_id"])
-        self.assertIsNone(fila["precio_ml"])
+        self.assertEqual(fila["cantidad_vinculos"], 0)
 
-    def test_con_mapa_sin_precio_sincronizado_todavia_queda_en_none(self):
-        mapa = MLItemMap(sku="ML000111", ml_item_id="MLC999")
-        fila = services.construir_fila_catalogo(self._item_stockservice(), None, mapa)
-        self.assertIsNone(fila["precio_ml"])
+    def test_precio_ml_es_el_que_se_publicaria_aunque_no_este_vinculado(self):
+        """Sin % configurado el precio ML es igual al neto de SAP — se ve antes de publicar nada."""
+        fila = services.construir_fila_catalogo(self._item_stockservice(), None, [])
+        self.assertEqual(fila["precio_ml"], 1234)
 
-    def test_con_mapa_y_precio_sincronizado_lo_muestra(self):
-        mapa = MLItemMap(sku="ML000111", ml_item_id="MLC999", ultimo_precio_sincronizado=Decimal("1300.00"))
-        fila = services.construir_fila_catalogo(self._item_stockservice(), None, mapa)
-        self.assertEqual(fila["precio_ml"], Decimal("1300.00"))
+    def test_precio_ml_de_un_pack_multiplica_por_las_unidades(self):
+        vinculo = MLItemMap(sku="ML000111", ml_item_id="MLC999", unidades_por_item=100)
+        fila = services.construir_fila_catalogo(self._item_stockservice(), None, [vinculo])
+        self.assertEqual(fila["precio_ml"], 123400)
+
+    def test_con_varios_vinculos_no_muestra_un_precio_unico(self):
+        vinculos = [
+            MLItemMap(sku="ML000111", ml_item_id="MLC111", unidades_por_item=1),
+            MLItemMap(sku="ML000111", ml_item_id="MLC222", unidades_por_item=100),
+        ]
+        fila = services.construir_fila_catalogo(self._item_stockservice(), None, vinculos)
+
+        self.assertEqual(fila["estado"], "2 ítems vinculados")
+        self.assertIsNone(fila["precio_ml"])
+        self.assertIsNone(fila["ml_item_id"])
+        self.assertEqual(fila["cantidad_vinculos"], 2)
 
     def test_stock_web_solo_suma_bodegas_01_y_11(self):
-        fila = services.construir_fila_catalogo(self._item_stockservice(), None, None)
+        fila = services.construir_fila_catalogo(self._item_stockservice(), None, [])
         self.assertEqual(fila["stock_web"], 8)  # 5 + 3, sin contar stock_15
 
     def test_con_config_refleja_los_flags_activos(self):
         config = SkuSyncConfig(sku="ML000111", sync_stock=True, sync_price=False)
-        fila = services.construir_fila_catalogo(self._item_stockservice(), config, None)
+        fila = services.construir_fila_catalogo(self._item_stockservice(), config, [])
         self.assertTrue(fila["sync_stock"])
         self.assertFalse(fila["sync_price"])
 
-    def test_con_mapa_muestra_el_estado_publicado(self):
-        mapa = MLItemMap(sku="ML000111", ml_item_id="MLC999", status=MLItemMap.Status.PAUSED)
-        fila = services.construir_fila_catalogo(self._item_stockservice(), None, mapa)
+    def test_con_un_vinculo_muestra_el_estado_publicado(self):
+        vinculo = MLItemMap(sku="ML000111", ml_item_id="MLC999", status=MLItemMap.Status.PAUSED)
+        fila = services.construir_fila_catalogo(self._item_stockservice(), None, [vinculo])
         self.assertEqual(fila["estado"], "Pausado")
         self.assertEqual(fila["ml_item_id"], "MLC999")
 
     def test_precio_ausente_no_rompe(self):
-        fila = services.construir_fila_catalogo(self._item_stockservice(price=None), None, None)
+        fila = services.construir_fila_catalogo(self._item_stockservice(price=None), None, [])
         self.assertIsNone(fila["precio_neto"])
+        self.assertIsNone(fila["precio_ml"])
 
 
 class ObtenerConfigYMapaTests(TestCase):
@@ -175,6 +203,91 @@ class ObtenerConfigYMapaTests(TestCase):
         configs, mapas = services.obtener_config_y_mapa(["ML000111"])
         self.assertEqual(configs, {})
         self.assertEqual(mapas, {})
+
+    def test_devuelve_todos_los_vinculos_de_un_sku_no_solo_uno(self):
+        """HU-CM2.7 — con un dict plano sku->vínculo se perdía silenciosamente el resto."""
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC111", unidades_por_item=1)
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC222", unidades_por_item=100)
+
+        _configs, mapas = services.obtener_config_y_mapa(["ML000111"])
+
+        self.assertEqual(len(mapas["ML000111"]), 2)
+
+    def test_los_vinculos_vienen_ordenados_por_unidades(self):
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC222", unidades_por_item=100)
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC111", unidades_por_item=1)
+
+        _configs, mapas = services.obtener_config_y_mapa(["ML000111"])
+
+        self.assertEqual([v.unidades_por_item for v in mapas["ML000111"]], [1, 100])
+
+
+class ResolverPrecioMlTests(TestCase):
+    """HU-CM1.7/2.7 — precedencia de precios y factor de pack."""
+
+    def test_sin_config_usa_el_porcentaje_global(self):
+        services.guardar_porcentaje_ajuste(Decimal("10"), usuario=None)
+        self.assertEqual(services.resolver_precio_ml(1000, None), 1100)
+
+    def test_porcentaje_propio_del_producto_pisa_el_global(self):
+        services.guardar_porcentaje_ajuste(Decimal("10"), usuario=None)
+        config = SkuSyncConfig(sku="ML000111", porcentaje_ajuste_propio=Decimal("50"))
+
+        self.assertEqual(services.resolver_precio_ml(1000, config), 1500)
+
+    def test_precio_manual_del_producto_pisa_cualquier_porcentaje(self):
+        services.guardar_porcentaje_ajuste(Decimal("10"), usuario=None)
+        config = SkuSyncConfig(
+            sku="ML000111", porcentaje_ajuste_propio=Decimal("50"), precio_manual=Decimal("777")
+        )
+
+        self.assertEqual(services.resolver_precio_ml(1000, config), 777)
+
+    def test_precio_manual_del_vinculo_pisa_al_del_producto(self):
+        config = SkuSyncConfig(sku="ML000111", precio_manual=Decimal("777"))
+        vinculo = MLItemMap(sku="ML000111", ml_item_id="MLC1", precio_manual=Decimal("99000"))
+
+        self.assertEqual(services.resolver_precio_ml(1000, config, vinculo), 99000)
+
+    def test_precio_manual_del_vinculo_no_se_multiplica_por_unidades(self):
+        """Ya es el precio del pack tal como se tipeó — multiplicarlo de nuevo lo inflaría x100."""
+        vinculo = MLItemMap(
+            sku="ML000111", ml_item_id="MLC1", unidades_por_item=100, precio_manual=Decimal("21100")
+        )
+
+        self.assertEqual(services.resolver_precio_ml(211, None, vinculo), 21100)
+
+    def test_pack_multiplica_el_precio_unitario_resuelto(self):
+        """Caso real de Felipe: ML000111 a $211 la unidad, agrupación de 100 en ML."""
+        vinculo = MLItemMap(sku="ML000111", ml_item_id="MLC1", unidades_por_item=100)
+        self.assertEqual(services.resolver_precio_ml(211, None, vinculo), 21100)
+
+    def test_pack_con_porcentaje_aplica_el_ajuste_antes_de_multiplicar(self):
+        services.guardar_porcentaje_ajuste(Decimal("10"), usuario=None)
+        vinculo = MLItemMap(sku="ML000111", ml_item_id="MLC1", unidades_por_item=100)
+
+        self.assertEqual(services.resolver_precio_ml(211, None, vinculo), 23210)  # 211*1.1*100
+
+    def test_redondea_una_sola_vez_al_final(self):
+        """Redondear el unitario primero daría 23200 (232*100) en vez de 23210."""
+        services.guardar_porcentaje_ajuste(Decimal("10"), usuario=None)
+        vinculo = MLItemMap(sku="ML000111", ml_item_id="MLC1", unidades_por_item=100)
+
+        self.assertNotEqual(services.resolver_precio_ml(211, None, vinculo), 23200)
+
+
+class ResolverStockMlTests(TestCase):
+    def test_sin_pack_es_el_stock_tal_cual(self):
+        vinculo = MLItemMap(sku="ML000111", ml_item_id="MLC1", unidades_por_item=1)
+        self.assertEqual(services.resolver_stock_ml(250, vinculo), 250)
+
+    def test_pack_devuelve_cuantos_packs_completos_se_pueden_armar(self):
+        vinculo = MLItemMap(sku="ML000111", ml_item_id="MLC1", unidades_por_item=100)
+        self.assertEqual(services.resolver_stock_ml(250, vinculo), 2)
+
+    def test_stock_insuficiente_para_un_pack_completo_da_cero(self):
+        vinculo = MLItemMap(sku="ML000111", ml_item_id="MLC1", unidades_por_item=100)
+        self.assertEqual(services.resolver_stock_ml(99, vinculo), 0)
 
 
 class IndexViewTests(TestCase):

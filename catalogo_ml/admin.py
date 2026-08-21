@@ -5,8 +5,11 @@ from .models import ConfiguracionSyncML, MLItemMap, PerfilSellerML, SkuSyncConfi
 
 @admin.register(SkuSyncConfig)
 class SkuSyncConfigAdmin(admin.ModelAdmin):
-    list_display = ("sku", "sync_stock", "sync_price", "enabled", "updated_at", "updated_by")
-    list_editable = ("sync_stock", "sync_price", "enabled")
+    list_display = (
+        "sku", "sync_stock", "sync_price", "enabled",
+        "porcentaje_ajuste_propio", "precio_manual", "updated_at", "updated_by",
+    )
+    list_editable = ("sync_stock", "sync_price", "enabled", "porcentaje_ajuste_propio", "precio_manual")
     search_fields = ("sku",)
     list_filter = ("enabled", "sync_stock", "sync_price")
 
@@ -17,7 +20,11 @@ class SkuSyncConfigAdmin(admin.ModelAdmin):
 
 @admin.register(MLItemMap)
 class MLItemMapAdmin(admin.ModelAdmin):
-    list_display = ("sku", "ml_item_id", "ml_site_id", "status", "last_checked_at")
+    list_display = (
+        "sku", "ml_item_id", "unidades_por_item", "precio_manual",
+        "ml_site_id", "status", "last_checked_at",
+    )
+    list_editable = ("unidades_por_item", "precio_manual")
     search_fields = ("sku", "ml_item_id")
     list_filter = ("status", "ml_site_id")
 

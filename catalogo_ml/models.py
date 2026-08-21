@@ -23,6 +23,11 @@ class SkuSyncConfig(models.Model):
     sync_price = models.BooleanField(default=False)
     enabled = models.BooleanField(default=True)
 
+    # HU-CM1.7 — excepciones de precio de ESTE producto. Ambos en null = "usar el nivel de arriba"
+    # (el % global de ConfiguracionSyncML), así no hay que duplicar el global en cada fila.
+    porcentaje_ajuste_propio = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    precio_manual = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -47,7 +52,13 @@ class SkuSyncConfig(models.Model):
 
 
 class MLItemMap(models.Model):
-    """Un SKU publicado en Mercado Libre — de acá en adelante ese SKU se actualiza, no se publica de nuevo."""
+    """
+    Un vínculo entre un SKU de SAP y un ítem publicado en Mercado Libre.
+
+    HU-CM2.7: `sku` NO es único — el mismo producto puede estar publicado varias veces (unidad
+    suelta y agrupación de N unidades, caso real de `ML000111`). `ml_item_id` sí es único: un ítem
+    de ML pertenece a un solo vínculo.
+    """
 
     class Status(models.TextChoices):
         ACTIVE = "active", "Activo"
@@ -55,9 +66,17 @@ class MLItemMap(models.Model):
         CLOSED = "closed", "Cerrado"
         UNDER_REVIEW = "under_review", "En revisión"
 
-    sku = models.CharField(max_length=50, unique=True, db_index=True)
+    sku = models.CharField(max_length=50, db_index=True)
     ml_item_id = models.CharField(max_length=30, unique=True)
     ml_site_id = models.CharField(max_length=10, default="MLC")
+
+    # Cuántas unidades del SKU entrega este ítem de ML (1 = unidad suelta, 100 = pack de 100).
+    # El precio del ítem es el del pack completo, y su stock es el disponible dividido por esto.
+    unidades_por_item = models.PositiveIntegerField(default=1)
+
+    # HU-CM1.7 — precio fijo de ESTE ítem, para clavar a mano el precio de un pack sin tocar el
+    # del unitario. En null se calcula desde el precio del producto × unidades_por_item.
+    precio_manual = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
     last_checked_at = models.DateTimeField(null=True, blank=True)
@@ -73,7 +92,9 @@ class MLItemMap(models.Model):
         verbose_name_plural = "Items publicados en Mercado Libre"
 
     def __str__(self):
-        return f"{self.sku} -> {self.ml_item_id}"
+        if self.unidades_por_item == 1:
+            return f"{self.sku} -> {self.ml_item_id}"
+        return f"{self.sku} x{self.unidades_por_item} -> {self.ml_item_id}"
 
 
 class ConfiguracionSyncML(models.Model):

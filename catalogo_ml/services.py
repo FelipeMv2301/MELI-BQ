@@ -29,29 +29,53 @@ logger = logging.getLogger(__name__)
 
 
 def obtener_config_y_mapa(skus):
-    """Trae SkuSyncConfig y MLItemMap de una sola consulta cada uno — evita N+1 al armar la grilla."""
+    """
+    Trae SkuSyncConfig y MLItemMap de una sola consulta cada uno — evita N+1 al armar la grilla.
+
+    `mapas` es sku -> LISTA de vínculos, no sku -> vínculo: desde HU-CM2.7 un SKU puede estar
+    publicado varias veces en ML (unidad suelta + packs). Un dict plano acá se quedaría en silencio
+    con uno solo de los vínculos.
+    """
     configs = {c.sku: c for c in SkuSyncConfig.objects.filter(sku__in=skus)}
-    mapas = {m.sku: m for m in MLItemMap.objects.filter(sku__in=skus)}
+
+    mapas = {}
+    for vinculo in MLItemMap.objects.filter(sku__in=skus).order_by("unidades_por_item"):
+        mapas.setdefault(vinculo.sku, []).append(vinculo)
     return configs, mapas
 
 
-def construir_fila_catalogo(item, config, mapa):
+def construir_fila_catalogo(item, config, vinculos):
     """
     item: dict crudo de stockservice_client.obtener_catalogo() (sku, name, price, stock_01...).
     config: SkuSyncConfig o None (todavía no fue tocado desde la grilla).
-    mapa: MLItemMap o None (todavía no publicado en ML).
+    vinculos: lista de MLItemMap del SKU (vacía si todavía no está publicado en ML).
     """
+    vinculos = vinculos or []
+    precio_neto = item.get("price")
+
+    # "Precio ML" es el precio que se PUBLICARÍA con la configuración actual, no el último
+    # sincronizado (`ultimo_precio_sincronizado`): así se ve el efecto de cambiar un % antes de
+    # empujar nada. Con varios vínculos no hay un único precio — el detalle está en HU-CM1.6.
+    if len(vinculos) > 1:
+        estado = f"{len(vinculos)} ítems vinculados"
+        precio_ml = None
+    else:
+        vinculo = vinculos[0] if vinculos else None
+        estado = vinculo.get_status_display() if vinculo else "No sincronizado"
+        precio_ml = resolver_precio_ml(precio_neto, config, vinculo) if precio_neto is not None else None
+
     return {
         "sku": item["sku"],
         "nombre": item.get("name") or "",
-        "precio_neto": item.get("price"),
-        "precio_ml": mapa.ultimo_precio_sincronizado if mapa else None,
+        "precio_neto": precio_neto,
+        "precio_ml": precio_ml,
         "stock_web": sum(item.get(bodega) or 0 for bodega in _BODEGAS_WEB),
         "sync_stock": config.sync_stock if config else False,
         "sync_price": config.sync_price if config else False,
         "enabled": config.enabled if config else True,
-        "estado": mapa.get_status_display() if mapa else "No sincronizado",
-        "ml_item_id": mapa.ml_item_id if mapa else None,
+        "estado": estado,
+        "cantidad_vinculos": len(vinculos),
+        "ml_item_id": vinculos[0].ml_item_id if len(vinculos) == 1 else None,
     }
 
 
@@ -69,8 +93,8 @@ def construir_fila_por_sku(sku):
         return None
 
     config = SkuSyncConfig.objects.filter(sku=sku).first()
-    mapa = MLItemMap.objects.filter(sku=sku).first()
-    return construir_fila_catalogo(item, config, mapa)
+    vinculos = list(MLItemMap.objects.filter(sku=sku).order_by("unidades_por_item"))
+    return construir_fila_catalogo(item, config, vinculos)
 
 
 def obtener_porcentaje_ajuste():
@@ -94,6 +118,54 @@ def calcular_precio_ml(precio_sap):
     porcentaje = obtener_porcentaje_ajuste()
     precio_ajustado = Decimal(precio_sap) * (Decimal("1") + porcentaje / Decimal("100"))
     return int(precio_ajustado.to_integral_value(rounding=ROUND_HALF_UP))
+
+
+def _redondear_clp(monto):
+    """CLP no tiene decimales — se redondea una sola vez, al final del cálculo completo."""
+    return int(Decimal(monto).to_integral_value(rounding=ROUND_HALF_UP))
+
+
+def resolver_precio_unitario(precio_sap, config):
+    """
+    HU-CM1.7 — precio de UNA unidad, sin el factor de pack. Precedencia (decisión de Felipe
+    2026-08-21): un precio manual del producto pisa cualquier porcentaje; si no hay manual, se
+    aplica el % propio del producto, y si tampoco hay, el % global.
+    """
+    if config and config.precio_manual is not None:
+        return Decimal(config.precio_manual)
+
+    if config and config.porcentaje_ajuste_propio is not None:
+        porcentaje = config.porcentaje_ajuste_propio
+    else:
+        porcentaje = obtener_porcentaje_ajuste()
+    return Decimal(precio_sap) * (Decimal("1") + porcentaje / Decimal("100"))
+
+
+def resolver_precio_ml(precio_sap, config, vinculo=None):
+    """
+    HU-CM1.7/2.7 — precio final que se le manda a ML para UNA publicación concreta. ML espera el
+    precio de la publicación completa, así que para una agrupación es el precio del pack: el
+    unitario resuelto multiplicado por `unidades_por_item`.
+
+    `vinculo.precio_manual` gana sobre todo lo demás y se toma tal cual (ya es el precio del pack,
+    tal como se tipeó) — no se vuelve a multiplicar por las unidades.
+    """
+    if vinculo is not None and vinculo.precio_manual is not None:
+        return _redondear_clp(vinculo.precio_manual)
+
+    unitario = resolver_precio_unitario(precio_sap, config)
+    unidades = vinculo.unidades_por_item if vinculo is not None else 1
+    return _redondear_clp(unitario * unidades)
+
+
+def resolver_stock_ml(stock_disponible, vinculo):
+    """
+    HU-CM2.7 — stock a publicar para una agrupación: cuántos packs completos se pueden armar con el
+    stock disponible. División entera a propósito — no existe medio pack, y redondear para arriba
+    haría vender algo que no se puede entregar.
+    """
+    unidades = vinculo.unidades_por_item if vinculo is not None else 1
+    return stock_disponible // unidades
 
 
 class TokenMLNoConfigurado(Exception):
@@ -192,7 +264,9 @@ def vincular_si_existe_en_ml(sku, access_token, seller_id):
     item_id = ml_client.buscar_item_por_sku(access_token, seller_id, sku)
     if item_id is None:
         return None
-    mapa, _creado = MLItemMap.objects.update_or_create(sku=sku, defaults={"ml_item_id": item_id})
+    # Se busca por ml_item_id, no por sku: desde HU-CM2.7 un SKU puede tener varios vínculos, y lo
+    # único que identifica a UNO es el ítem de ML.
+    mapa, _creado = MLItemMap.objects.get_or_create(ml_item_id=item_id, defaults={"sku": sku})
     return mapa
 
 
