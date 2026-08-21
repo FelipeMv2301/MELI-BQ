@@ -1,6 +1,9 @@
 <div id="tabla-catalogo">
   <input type="hidden" name="q" value="{{ q }}">
   <input type="hidden" name="pagina" value="{{ pagina }}">
+  {% if sincronizado %}<input type="hidden" name="sincronizado" value="1">{% endif %}
+  {% if solo_sync_stock %}<input type="hidden" name="solo_sync_stock" value="1">{% endif %}
+  {% if solo_sync_precio %}<input type="hidden" name="solo_sync_precio" value="1">{% endif %}
 
   <div class="bg-surface border border-line rounded-2xl shadow-sm overflow-hidden">
     <div class="overflow-x-auto">
@@ -36,15 +39,15 @@
     <span>{{ total }} producto{{ total|pluralize }}</span>
     <div class="flex items-center gap-2">
       {% if pagina > 1 %}
-      <a href="?q={{ q|urlencode }}&pagina={{ pagina|add:"-1" }}"
-         hx-get="?q={{ q|urlencode }}&pagina={{ pagina|add:"-1" }}"
+      <a href="?q={{ q|urlencode }}&pagina={{ pagina|add:"-1" }}{% if sincronizado %}&sincronizado=1{% endif %}{% if solo_sync_stock %}&solo_sync_stock=1{% endif %}{% if solo_sync_precio %}&solo_sync_precio=1{% endif %}"
+         hx-get="?q={{ q|urlencode }}&pagina={{ pagina|add:"-1" }}{% if sincronizado %}&sincronizado=1{% endif %}{% if solo_sync_stock %}&solo_sync_stock=1{% endif %}{% if solo_sync_precio %}&solo_sync_precio=1{% endif %}"
          hx-target="#tabla-catalogo" hx-swap="outerHTML"
          class="font-semibold px-3 py-1.5 rounded-lg border border-linestrong text-body hover:bg-appbg">Anterior</a>
       {% endif %}
       <span>Página {{ pagina }} de {{ total_paginas }}</span>
       {% if pagina < total_paginas %}
-      <a href="?q={{ q|urlencode }}&pagina={{ pagina|add:"1" }}"
-         hx-get="?q={{ q|urlencode }}&pagina={{ pagina|add:"1" }}"
+      <a href="?q={{ q|urlencode }}&pagina={{ pagina|add:"1" }}{% if sincronizado %}&sincronizado=1{% endif %}{% if solo_sync_stock %}&solo_sync_stock=1{% endif %}{% if solo_sync_precio %}&solo_sync_precio=1{% endif %}"
+         hx-get="?q={{ q|urlencode }}&pagina={{ pagina|add:"1" }}{% if sincronizado %}&sincronizado=1{% endif %}{% if solo_sync_stock %}&solo_sync_stock=1{% endif %}{% if solo_sync_precio %}&solo_sync_precio=1{% endif %}"
          hx-target="#tabla-catalogo" hx-swap="outerHTML"
          class="font-semibold px-3 py-1.5 rounded-lg border border-linestrong text-body hover:bg-appbg">Siguiente</a>
       {% endif %}

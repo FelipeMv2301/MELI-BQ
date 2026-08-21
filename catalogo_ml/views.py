@@ -34,13 +34,49 @@ def _leer_pagina(datos):
         return 1
 
 
-def _armar_contexto_tabla(busqueda, pagina):
-    offset = (pagina - 1) * services.PAGE_SIZE
-    respuesta = stockservice_client.obtener_catalogo(
-        search=busqueda or None, limit=services.PAGE_SIZE, offset=offset
-    )
+def _leer_filtros(datos):
+    return {
+        "sincronizado": datos.get("sincronizado") == "1",
+        "solo_sync_stock": datos.get("solo_sync_stock") == "1",
+        "solo_sync_precio": datos.get("solo_sync_precio") == "1",
+    }
 
-    items = respuesta["items"]
+
+def _items_filtrados_localmente(skus_filtrados, busqueda):
+    """
+    Cuando hay algún filtro de sync activo, el universo lo definen los SKUs locales (chico), no la
+    paginación de Stock-Service — se trae el detalle de cada uno por separado y, si además hay
+    texto de búsqueda, se filtra en memoria por sku/nombre (ambos ya disponibles en cada item).
+    N llamadas a Stock-Service, una por SKU — aceptable mientras estos conjuntos se mantengan
+    chicos (hoy, muy por debajo del catálogo completo); revisar si esto crece mucho más adelante.
+    """
+    items = []
+    for sku in sorted(skus_filtrados):
+        item = services.obtener_item_stockservice_por_sku(sku)
+        if item is None:
+            continue
+        if busqueda and busqueda.lower() not in item["sku"].lower() and busqueda.lower() not in (item.get("name") or "").lower():
+            continue
+        items.append(item)
+    return items
+
+
+def _armar_contexto_tabla(busqueda, pagina, filtros):
+    skus_filtrados = services.skus_que_cumplen_filtro(**filtros)
+
+    if skus_filtrados is None:
+        offset = (pagina - 1) * services.PAGE_SIZE
+        respuesta = stockservice_client.obtener_catalogo(
+            search=busqueda or None, limit=services.PAGE_SIZE, offset=offset
+        )
+        items = respuesta["items"]
+        total = respuesta["total"]
+    else:
+        todos = _items_filtrados_localmente(skus_filtrados, busqueda)
+        total = len(todos)
+        inicio = (pagina - 1) * services.PAGE_SIZE
+        items = todos[inicio : inicio + services.PAGE_SIZE]
+
     skus = [item["sku"] for item in items]
     configs, mapas = services.obtener_config_y_mapa(skus)
 
@@ -49,10 +85,12 @@ def _armar_contexto_tabla(busqueda, pagina):
         for item in items
     ]
 
-    total = respuesta["total"]
     total_paginas = max(math.ceil(total / services.PAGE_SIZE), 1) if services.PAGE_SIZE else 1
 
-    return {"filas": filas, "q": busqueda, "pagina": pagina, "total_paginas": total_paginas, "total": total}
+    return {
+        "filas": filas, "q": busqueda, "pagina": pagina, "total_paginas": total_paginas, "total": total,
+        **filtros,
+    }
 
 
 @login_required
@@ -60,8 +98,9 @@ def index(request):
     """HU-CM1.1 — grilla paginada del catálogo (vía Stock-Service) con el estado de sync de cada SKU."""
     busqueda = request.GET.get("q", "").strip()
     pagina = _leer_pagina(request.GET)
+    filtros = _leer_filtros(request.GET)
 
-    contexto = _armar_contexto_tabla(busqueda, pagina)
+    contexto = _armar_contexto_tabla(busqueda, pagina, filtros)
 
     es_peticion_htmx = request.headers.get("HX-Request") == "true"
     if es_peticion_htmx:
@@ -189,7 +228,8 @@ def toggle_masivo(request):
 
     busqueda = request.POST.get("q", "").strip()
     pagina = _leer_pagina(request.POST)
-    contexto = _armar_contexto_tabla(busqueda, pagina)
+    filtros = _leer_filtros(request.POST)
+    contexto = _armar_contexto_tabla(busqueda, pagina, filtros)
     return render(request, "catalogo_ml/_tabla.html", contexto)
 
 
@@ -228,5 +268,6 @@ def vincular_masivo(request):
 
     busqueda = request.POST.get("q", "").strip()
     pagina = _leer_pagina(request.POST)
-    contexto = _armar_contexto_tabla(busqueda, pagina)
+    filtros = _leer_filtros(request.POST)
+    contexto = _armar_contexto_tabla(busqueda, pagina, filtros)
     return render(request, "catalogo_ml/_tabla.html", contexto)

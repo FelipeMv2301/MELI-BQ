@@ -811,3 +811,111 @@ class VincularMasivoViewTests(TestCase):
         self.assertFalse(MLItemMap.objects.filter(sku="ML000111").exists())
         mensajes = [str(m) for m in respuesta.wsgi_request._messages]
         self.assertTrue(any("no se encontraron" in m for m in mensajes))
+
+
+class SkusQueCumplenFiltroTests(TestCase):
+    def test_sin_filtros_devuelve_none(self):
+        self.assertIsNone(services.skus_que_cumplen_filtro())
+
+    def test_sincronizado_devuelve_los_que_tienen_mapa(self):
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC1")
+        MLItemMap.objects.create(sku="ML000222", ml_item_id="MLC2")
+
+        resultado = services.skus_que_cumplen_filtro(sincronizado=True)
+
+        self.assertEqual(resultado, {"ML000111", "ML000222"})
+
+    def test_solo_sync_stock_devuelve_los_que_tienen_el_flag(self):
+        SkuSyncConfig.objects.create(sku="ML000111", sync_stock=True)
+        SkuSyncConfig.objects.create(sku="ML000222", sync_stock=False)
+
+        resultado = services.skus_que_cumplen_filtro(solo_sync_stock=True)
+
+        self.assertEqual(resultado, {"ML000111"})
+
+    def test_solo_sync_precio_devuelve_los_que_tienen_el_flag(self):
+        SkuSyncConfig.objects.create(sku="ML000111", sync_price=True)
+
+        resultado = services.skus_que_cumplen_filtro(solo_sync_precio=True)
+
+        self.assertEqual(resultado, {"ML000111"})
+
+    def test_varios_filtros_se_combinan_con_and(self):
+        SkuSyncConfig.objects.create(sku="ML000111", sync_stock=True, sync_price=True)
+        SkuSyncConfig.objects.create(sku="ML000222", sync_stock=True, sync_price=False)
+
+        resultado = services.skus_que_cumplen_filtro(solo_sync_stock=True, solo_sync_precio=True)
+
+        self.assertEqual(resultado, {"ML000111"})
+
+
+class FiltrosEnLaGrillaViewTests(TestCase):
+    """Filtros de la grilla (sincronizado / sync stock / sync precio) — vía la vista index."""
+
+    def setUp(self):
+        self.usuario = get_user_model().objects.create(email="test@bioquimica.cl")
+        self.client.force_login(self.usuario)
+
+    @patch("catalogo_ml.views.stockservice_client.obtener_catalogo")
+    def test_sin_filtros_usa_la_paginacion_normal_de_stockservice(self, obtener_catalogo_mock):
+        obtener_catalogo_mock.return_value = {"total": 0, "limit": 50, "offset": 0, "items": []}
+
+        self.client.get("/catalogo/")
+
+        obtener_catalogo_mock.assert_called_once_with(search=None, limit=services.PAGE_SIZE, offset=0)
+
+    @patch("catalogo_ml.services.stockservice_client.obtener_catalogo")
+    def test_con_filtro_sincronizado_no_usa_la_paginacion_de_stockservice(self, obtener_catalogo_mock):
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC1")
+        obtener_catalogo_mock.return_value = {
+            "total": 1, "limit": 50, "offset": 0,
+            "items": [{"sku": "ML000111", "name": "Tubo A", "price": 100, "stock_01": 1, "stock_11": 0}],
+        }
+
+        respuesta = self.client.get("/catalogo/", {"sincronizado": "1"})
+
+        self.assertContains(respuesta, "ML000111")
+        # Se busca por sku (obtener_item_stockservice_por_sku), no con la paginación normal.
+        obtener_catalogo_mock.assert_called_once_with(search="ML000111", limit=50, offset=0)
+
+    @patch("catalogo_ml.services.stockservice_client.obtener_catalogo")
+    def test_filtro_sincronizado_no_muestra_lo_que_no_tiene_mapa(self, obtener_catalogo_mock):
+        SkuSyncConfig.objects.create(sku="ML000333", sync_stock=True)  # sin MLItemMap
+
+        respuesta = self.client.get("/catalogo/", {"sincronizado": "1"})
+
+        self.assertEqual(respuesta.context["total"], 0)
+        obtener_catalogo_mock.assert_not_called()
+
+    @patch("catalogo_ml.services.stockservice_client.obtener_catalogo")
+    def test_filtro_solo_sync_stock(self, obtener_catalogo_mock):
+        SkuSyncConfig.objects.create(sku="ML000111", sync_stock=True)
+        SkuSyncConfig.objects.create(sku="ML000222", sync_stock=False)
+        obtener_catalogo_mock.return_value = {
+            "total": 1, "limit": 50, "offset": 0,
+            "items": [{"sku": "ML000111", "name": "Tubo A", "price": 100, "stock_01": 1, "stock_11": 0}],
+        }
+
+        respuesta = self.client.get("/catalogo/", {"solo_sync_stock": "1"})
+
+        self.assertContains(respuesta, "ML000111")
+        self.assertEqual(respuesta.context["total"], 1)
+
+    @patch("catalogo_ml.services.stockservice_client.obtener_catalogo")
+    def test_filtro_combinado_con_busqueda_de_texto(self, obtener_catalogo_mock):
+        MLItemMap.objects.create(sku="ML000111", ml_item_id="MLC1")
+        MLItemMap.objects.create(sku="ML000222", ml_item_id="MLC2")
+
+        def _catalogo_por_sku(search=None, limit=0, offset=0):
+            productos = {
+                "ML000111": {"sku": "ML000111", "name": "Xileno", "price": 100, "stock_01": 1, "stock_11": 0},
+                "ML000222": {"sku": "ML000222", "name": "Etanol", "price": 200, "stock_01": 2, "stock_11": 0},
+            }
+            return {"total": 1, "limit": 50, "offset": 0, "items": [productos[search]]}
+
+        obtener_catalogo_mock.side_effect = _catalogo_por_sku
+
+        respuesta = self.client.get("/catalogo/", {"sincronizado": "1", "q": "xileno"})
+
+        self.assertContains(respuesta, "ML000111")
+        self.assertNotContains(respuesta, "ML000222")

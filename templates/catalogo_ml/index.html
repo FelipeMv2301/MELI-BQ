@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Catálogo — MELI-BQ{% endblock %}
 {% block content %}
+{% with filtros_include="[name='sincronizado'], [name='solo_sync_stock'], [name='solo_sync_precio']" %}
 <div class="mb-5">
   <h1 class="text-2xl font-bold text-ink">Selección y sync de catálogo hacia Mercado Libre</h1>
 </div>
@@ -50,15 +51,37 @@
   hx-target="#tabla-catalogo"
   hx-swap="outerHTML"
   hx-trigger="keyup changed delay:500ms, search"
-  hx-include="this"
+  hx-include="this, {{ filtros_include }}"
 >
+
+<div class="flex flex-wrap gap-4 mb-4 text-sm items-center">
+  <span class="text-muted">Filtrar:</span>
+  <label class="flex items-center gap-1.5 cursor-pointer text-body">
+    <input type="checkbox" name="sincronizado" value="1" {% if sincronizado %}checked{% endif %} class="accent-brand"
+           hx-get="{% url 'catalogo_ml:index' %}" hx-target="#tabla-catalogo" hx-swap="outerHTML"
+           hx-include="[name='q'], {{ filtros_include }}">
+    Sincronizado
+  </label>
+  <label class="flex items-center gap-1.5 cursor-pointer text-body">
+    <input type="checkbox" name="solo_sync_stock" value="1" {% if solo_sync_stock %}checked{% endif %} class="accent-brand"
+           hx-get="{% url 'catalogo_ml:index' %}" hx-target="#tabla-catalogo" hx-swap="outerHTML"
+           hx-include="[name='q'], {{ filtros_include }}">
+    Sync stock activo
+  </label>
+  <label class="flex items-center gap-1.5 cursor-pointer text-body">
+    <input type="checkbox" name="solo_sync_precio" value="1" {% if solo_sync_precio %}checked{% endif %} class="accent-brand"
+           hx-get="{% url 'catalogo_ml:index' %}" hx-target="#tabla-catalogo" hx-swap="outerHTML"
+           hx-include="[name='q'], {{ filtros_include }}">
+    Sync precio activo
+  </label>
+</div>
 
 <div class="flex flex-wrap gap-2 mb-3 text-sm items-center">
   <span class="text-muted">Con los seleccionados:</span>
   {% for etiqueta, campo, valor in acciones_masivas %}
   <button type="button" class="accion-masiva text-sm font-semibold px-3 py-1.5 rounded-lg border border-linestrong text-body hover:bg-appbg"
           hx-post="{% url 'catalogo_ml:toggle_masivo' %}"
-          hx-include="[name='skus']:checked, [name='q'], [name='pagina']"
+          hx-include="[name='skus']:checked, [name='q'], [name='pagina'], {{ filtros_include }}"
           hx-vals='{"campo": "{{ campo }}", "valor": "{{ valor }}"}'
           hx-target="#tabla-catalogo" hx-swap="outerHTML"
           hx-confirm="¿{{ etiqueta }} en los productos seleccionados?">
@@ -67,7 +90,7 @@
   {% endfor %}
   <button type="button" class="accion-masiva text-sm font-semibold px-3 py-1.5 rounded-lg border border-linestrong text-body hover:bg-appbg"
           hx-post="{% url 'catalogo_ml:vincular_masivo' %}"
-          hx-include="[name='skus']:checked, [name='q'], [name='pagina']"
+          hx-include="[name='skus']:checked, [name='q'], [name='pagina'], {{ filtros_include }}"
           hx-target="#tabla-catalogo" hx-swap="outerHTML"
           hx-confirm="¿Buscar en Mercado Libre los productos seleccionados y vincular los que ya existan publicados?">
     Sincronizar con Mercado Libre
@@ -75,4 +98,5 @@
 </div>
 
 {% include "catalogo_ml/_tabla.html" %}
+{% endwith %}
 {% endblock %}

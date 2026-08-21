@@ -55,14 +55,16 @@ def construir_fila_catalogo(item, config, mapa):
     }
 
 
-def construir_fila_por_sku(sku):
-    """
-    HU-CM1.2 — reconstruye UNA fila después de un toggle, sin recargar toda la grilla. Busca por
-    `search=sku` en Stock-Service y se queda con el match exacto (search es ILIKE parcial, no
-    alcanza con "el primer resultado").
-    """
+def obtener_item_stockservice_por_sku(sku):
+    """Busca por `search=sku` en Stock-Service y se queda con el match exacto (search es ILIKE
+    parcial, no alcanza con "el primer resultado")."""
     respuesta = stockservice_client.obtener_catalogo(search=sku, limit=50, offset=0)
-    item = next((i for i in respuesta["items"] if i["sku"] == sku), None)
+    return next((i for i in respuesta["items"] if i["sku"] == sku), None)
+
+
+def construir_fila_por_sku(sku):
+    """HU-CM1.2 — reconstruye UNA fila después de un toggle, sin recargar toda la grilla."""
+    item = obtener_item_stockservice_por_sku(sku)
     if item is None:
         return None
 
@@ -192,6 +194,32 @@ def vincular_si_existe_en_ml(sku, access_token, seller_id):
         return None
     mapa, _creado = MLItemMap.objects.update_or_create(sku=sku, defaults={"ml_item_id": item_id})
     return mapa
+
+
+def skus_que_cumplen_filtro(sincronizado=False, solo_sync_stock=False, solo_sync_precio=False):
+    """
+    Filtros de la grilla (sincronizado / sync stock / sync precio) — universo COMPLETO de SKUs que
+    cumplen TODOS los filtros activos (AND). Solo tiene sentido para el caso "positivo" (mostrar
+    los que SÍ están sincronizados/activados): esos conjuntos viven enteros en esta base y son
+    chicos, muy por debajo de los ~2000 SKUs del catálogo total en Stock-Service.
+
+    Devuelve None si ningún filtro está activo — el caller debe seguir con la paginación normal de
+    Stock-Service en ese caso (mostrar "no sincronizados" no es tratable así: ese universo es
+    prácticamente el catálogo entero, no un subconjunto chico).
+    """
+    if not (sincronizado or solo_sync_stock or solo_sync_precio):
+        return None
+
+    skus = None
+    if sincronizado:
+        skus = set(MLItemMap.objects.values_list("sku", flat=True))
+    if solo_sync_stock:
+        candidato = set(SkuSyncConfig.objects.filter(sync_stock=True).values_list("sku", flat=True))
+        skus = candidato if skus is None else skus & candidato
+    if solo_sync_precio:
+        candidato = set(SkuSyncConfig.objects.filter(sync_price=True).values_list("sku", flat=True))
+        skus = candidato if skus is None else skus & candidato
+    return skus
 
 
 def vincular_masivo(skus):
