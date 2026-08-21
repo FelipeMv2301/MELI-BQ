@@ -118,25 +118,31 @@ def buscar_items_por_texto(access_token, seller_id, texto, limit=20):
     return respuesta.json().get("results", [])
 
 
+MAX_IDS_POR_MULTIGET = 20
+
+
 def obtener_items(access_token, item_ids):
     """
-    Detalle de varios ítems en una sola llamada (`GET /items?ids=`) — necesario para mostrar título
-    y precio en la pantalla de vinculación sin hacer N requests.
+    Detalle de varios ítems por `GET /items?ids=` — evita N requests para mostrar título y precio
+    en la pantalla de vinculación.
 
-    La respuesta es una lista de sobres `{"code": 200, "body": {...}}`, no los ítems directo: se
-    devuelven solo los `body` de los que vinieron OK.
+    Se parte en lotes de MAX_IDS_POR_MULTIGET: ML devuelve 400 si se le mandan más ids de los que
+    acepta (confirmado con 50 ids el 2026-08-21). La respuesta es una lista de sobres
+    `{"code": 200, "body": {...}}`, no los ítems directo — se devuelven solo los `body` que vinieron
+    OK, así un ítem borrado o inaccesible no tumba el resto del lote.
     """
-    if not item_ids:
-        return []
-
-    respuesta = requests.get(
-        f"{BASE_URL}/items",
-        headers={"Authorization": f"Bearer {access_token}"},
-        params={"ids": ",".join(item_ids)},
-        timeout=15,
-    )
-    respuesta.raise_for_status()
-    return [sobre["body"] for sobre in respuesta.json() if sobre.get("code") == 200]
+    items = []
+    for inicio in range(0, len(item_ids), MAX_IDS_POR_MULTIGET):
+        lote = item_ids[inicio : inicio + MAX_IDS_POR_MULTIGET]
+        respuesta = requests.get(
+            f"{BASE_URL}/items",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"ids": ",".join(lote)},
+            timeout=15,
+        )
+        respuesta.raise_for_status()
+        items.extend(sobre["body"] for sobre in respuesta.json() if sobre.get("code") == 200)
+    return items
 
 
 def publicar_item(access_token, payload):

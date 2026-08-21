@@ -255,3 +255,18 @@ class ObtenerItemsTests(SimpleTestCase):
     def test_lista_vacia_no_llama_a_la_api(self, get_mock):
         self.assertEqual(ml_client.obtener_items("APP_USR-abc", []), [])
         get_mock.assert_not_called()
+
+    @patch("integraciones.ml_client.requests.get")
+    def test_parte_en_lotes_cuando_hay_mas_ids_de_los_que_ml_acepta(self, get_mock):
+        """ML devuelve 400 si se le mandan más de MAX_IDS_POR_MULTIGET ids de una."""
+        ids = [f"MLC{n}" for n in range(45)]
+        get_mock.side_effect = lambda *a, **kw: _respuesta_mock(
+            [{"code": 200, "body": {"id": i}} for i in kw["params"]["ids"].split(",")]
+        )
+
+        resultado = ml_client.obtener_items("APP_USR-abc", ids)
+
+        self.assertEqual(get_mock.call_count, 3)  # 20 + 20 + 5
+        self.assertEqual(len(resultado), 45)
+        for llamada in get_mock.call_args_list:
+            self.assertLessEqual(len(llamada.kwargs["params"]["ids"].split(",")), ml_client.MAX_IDS_POR_MULTIGET)
