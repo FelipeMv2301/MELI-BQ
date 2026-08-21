@@ -1,3 +1,4 @@
+import logging
 import math
 import secrets
 from decimal import Decimal, InvalidOperation
@@ -13,6 +14,8 @@ from integraciones import ml_client, stockservice_client
 
 from . import services
 from .models import SkuSyncConfig
+
+logger = logging.getLogger(__name__)
 
 _CAMPOS_VALIDOS = ("sync_stock", "sync_price")
 
@@ -67,6 +70,8 @@ def index(request):
     contexto["acciones_masivas"] = _ACCIONES_MASIVAS
     contexto["hay_token_ml"] = services.hay_token_ml()
     contexto["porcentaje_ajuste"] = services.obtener_porcentaje_ajuste()
+    if services.hay_perfil_seller():
+        contexto["modelo_item"] = services.descripcion_modelo_item()
     return render(request, "catalogo_ml/index.html", contexto)
 
 
@@ -109,6 +114,14 @@ def ml_callback(request):
         return redirect("catalogo_ml:index")
 
     services.guardar_token_ml(datos)
+
+    try:
+        services.actualizar_perfil_seller()
+    except Exception:
+        # Best-effort (HU-CM0.3): un fallo acá no debe tumbar un login que sí funcionó. El
+        # próximo login (o un reintento manual) lo vuelve a intentar.
+        logger.warning("No se pudo detectar el modelo de item del seller tras el login.", exc_info=True)
+
     messages.success(request, "Cuenta de Mercado Libre conectada correctamente.")
     return redirect("catalogo_ml:index")
 

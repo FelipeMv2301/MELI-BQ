@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ConfiguracionSyncML, MLItemMap, SkuSyncConfig
+from .models import ConfiguracionSyncML, MLItemMap, PerfilSellerML, SkuSyncConfig
 
 
 @admin.register(SkuSyncConfig)
@@ -29,3 +29,8 @@ class ConfiguracionSyncMLAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
+
+
+@admin.register(PerfilSellerML)
+class PerfilSellerMLAdmin(admin.ModelAdmin):
+    list_display = ("tags", "updated_at")

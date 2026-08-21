@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from integraciones import ml_client, stockservice_client
 
-from .models import ConfiguracionSyncML, MLItemMap, MLToken, SkuSyncConfig
+from .models import ConfiguracionSyncML, MLItemMap, MLToken, PerfilSellerML, SkuSyncConfig
 
 PAGE_SIZE = 50
 
@@ -145,3 +145,36 @@ def obtener_token_valido():
     datos = ml_client.refrescar_token(token.refresh_token)
     guardar_token_ml(datos)
     return datos["access_token"]
+
+
+def guardar_perfil_seller(tags):
+    perfil = PerfilSellerML.obtener()
+    perfil.tags = tags
+    perfil.save()
+    return perfil
+
+
+def actualizar_perfil_seller():
+    """
+    HU-CM0.3 — consulta una vez el modelo de item real del seller (SPK-MELI-2) y lo persiste.
+    Se llama automáticamente después de un login exitoso (ver views.ml_callback) — no hace falta
+    repetirlo salvo que ML active/desactive alguno de estos tags para la cuenta más adelante.
+    """
+    access_token = obtener_token_valido()
+    ml_user_id = MLToken.objects.first().ml_user_id
+    datos_usuario = ml_client.obtener_usuario(access_token, ml_user_id)
+    return guardar_perfil_seller(datos_usuario.get("tags", []))
+
+
+def hay_perfil_seller():
+    return PerfilSellerML.objects.exists()
+
+
+def descripcion_modelo_item():
+    """HU-CM0.3 — traduce los tags crudos a los 3 escenarios de items-y-user-products.md."""
+    perfil = PerfilSellerML.obtener()
+    if perfil.tiene_multiorigen:
+        return "Multiorigen"
+    if perfil.usa_user_products:
+        return "User Products (sin multiorigen)"
+    return "Legacy"

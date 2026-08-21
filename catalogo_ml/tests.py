@@ -12,7 +12,7 @@ from django.utils import timezone
 from utils import limpiar_descripcion_html
 
 from . import services
-from .models import ConfiguracionSyncML, MLItemMap, MLToken, SkuSyncConfig
+from .models import ConfiguracionSyncML, MLItemMap, MLToken, PerfilSellerML, SkuSyncConfig
 
 
 class LimpiarDescripcionHtmlTests(SimpleTestCase):
@@ -507,13 +507,41 @@ class MlCallbackViewTests(TestCase):
     def test_code_y_state_correctos_guardan_el_token(self):
         state = self._con_state_en_sesion()
 
-        with patch("catalogo_ml.views.ml_client.intercambiar_code_por_token") as canje_mock:
+        with patch("catalogo_ml.views.ml_client.intercambiar_code_por_token") as canje_mock, \
+             patch("catalogo_ml.services.ml_client.obtener_usuario") as usuario_mock:
             canje_mock.return_value = _DATOS_TOKEN
+            usuario_mock.return_value = {"id": 999, "tags": []}
             respuesta = self.client.get("/catalogo/ml/callback/", {"code": "EL_CODE", "state": state})
 
         self.assertRedirects(respuesta, "/catalogo/")
         self.assertTrue(services.hay_token_ml())
         self.assertEqual(MLToken.objects.get().access_token, "APP_USR-abc")
+
+    def test_code_y_state_correctos_tambien_detectan_el_modelo_de_item(self):
+        state = self._con_state_en_sesion()
+
+        with patch("catalogo_ml.views.ml_client.intercambiar_code_por_token") as canje_mock, \
+             patch("catalogo_ml.services.ml_client.obtener_usuario") as usuario_mock:
+            canje_mock.return_value = _DATOS_TOKEN
+            usuario_mock.return_value = {"id": 999, "tags": ["user_product_seller"]}
+            self.client.get("/catalogo/ml/callback/", {"code": "EL_CODE", "state": state})
+
+        usuario_mock.assert_called_once_with("APP_USR-abc", 999)
+        self.assertTrue(PerfilSellerML.obtener().usa_user_products)
+
+    def test_si_falla_la_deteccion_del_modelo_el_login_sigue_exitoso(self):
+        state = self._con_state_en_sesion()
+
+        with patch("catalogo_ml.views.ml_client.intercambiar_code_por_token") as canje_mock, \
+             patch("catalogo_ml.services.ml_client.obtener_usuario") as usuario_mock:
+            canje_mock.return_value = _DATOS_TOKEN
+            usuario_mock.side_effect = Exception("ML devolvió 500")
+            respuesta = self.client.get("/catalogo/ml/callback/", {"code": "EL_CODE", "state": state})
+
+        self.assertRedirects(respuesta, "/catalogo/")
+        self.assertTrue(services.hay_token_ml())
+        mensajes = [str(m) for m in respuesta.wsgi_request._messages]
+        self.assertTrue(any("conectada correctamente" in m for m in mensajes))
 
     def test_falla_el_canje_no_rompe_con_500(self):
         state = self._con_state_en_sesion()
@@ -596,3 +624,64 @@ class HomeRedirigeACatalogoTests(TestCase):
     def test_raiz_redirige_al_catalogo(self):
         respuesta = self.client.get("/")
         self.assertRedirects(respuesta, "/catalogo/", fetch_redirect_response=False)
+
+
+class PerfilSellerMLTests(TestCase):
+    def test_obtener_crea_la_fila_con_tags_vacios_por_defecto(self):
+        perfil = PerfilSellerML.obtener()
+        self.assertEqual(perfil.tags, [])
+        self.assertFalse(perfil.usa_user_products)
+        self.assertFalse(perfil.tiene_multiorigen)
+
+    def test_usa_user_products_sin_multiorigen(self):
+        perfil = PerfilSellerML.obtener()
+        perfil.tags = ["normal", "user_product_seller"]
+        self.assertTrue(perfil.usa_user_products)
+        self.assertFalse(perfil.tiene_multiorigen)
+
+    def test_tiene_multiorigen_requiere_ambos_tags(self):
+        perfil = PerfilSellerML.obtener()
+        perfil.tags = ["warehouse_management"]
+        self.assertFalse(perfil.tiene_multiorigen)
+        perfil.tags = ["warehouse_management", "multiwarehouse"]
+        self.assertTrue(perfil.tiene_multiorigen)
+
+
+class ActualizarPerfilSellerTests(TestCase):
+    def setUp(self):
+        MLToken.objects.create(
+            access_token="vigente", refresh_token="TG-1",
+            expires_at=timezone.now() + timedelta(hours=5), ml_user_id=999,
+        )
+
+    def test_guarda_los_tags_devueltos_por_ml(self):
+        with patch("catalogo_ml.services.ml_client.obtener_usuario") as usuario_mock:
+            usuario_mock.return_value = {"id": 999, "tags": ["user_product_seller", "warehouse_management", "multiwarehouse"]}
+            services.actualizar_perfil_seller()
+
+        usuario_mock.assert_called_once_with("vigente", 999)
+        self.assertTrue(PerfilSellerML.obtener().tiene_multiorigen)
+
+    def test_sin_tags_en_la_respuesta_guarda_lista_vacia(self):
+        with patch("catalogo_ml.services.ml_client.obtener_usuario") as usuario_mock:
+            usuario_mock.return_value = {"id": 999}
+            services.actualizar_perfil_seller()
+
+        self.assertEqual(PerfilSellerML.obtener().tags, [])
+
+
+class DescripcionModeloItemTests(TestCase):
+    def test_multiorigen_tiene_prioridad(self):
+        perfil = PerfilSellerML.obtener()
+        perfil.tags = ["user_product_seller", "warehouse_management", "multiwarehouse"]
+        perfil.save()
+        self.assertEqual(services.descripcion_modelo_item(), "Multiorigen")
+
+    def test_user_products_sin_multiorigen(self):
+        perfil = PerfilSellerML.obtener()
+        perfil.tags = ["user_product_seller"]
+        perfil.save()
+        self.assertEqual(services.descripcion_modelo_item(), "User Products (sin multiorigen)")
+
+    def test_sin_tags_relevantes_es_legacy(self):
+        self.assertEqual(services.descripcion_modelo_item(), "Legacy")

@@ -151,3 +151,23 @@ class RefrescarTokenTests(SimpleTestCase):
         self.assertEqual(datos_enviados["grant_type"], "refresh_token")
         self.assertEqual(datos_enviados["refresh_token"], "TG-viejo")
         self.assertEqual(datos_enviados["client_id"], "123456")
+
+
+class ObtenerUsuarioTests(SimpleTestCase):
+    @patch("integraciones.ml_client.requests.get")
+    def test_pega_al_endpoint_correcto_con_el_bearer_token(self, get_mock):
+        get_mock.return_value = _respuesta_mock({"id": 999, "tags": ["normal", "user_product_seller"]})
+
+        ml_client.obtener_usuario("APP_USR-abc", 999)
+
+        url_llamada = get_mock.call_args.args[0]
+        headers_llamada = get_mock.call_args.kwargs["headers"]
+        self.assertEqual(url_llamada, "https://api.mercadolibre.com/users/999")
+        self.assertEqual(headers_llamada, {"Authorization": "Bearer APP_USR-abc"})
+
+    def test_devuelve_el_json_de_la_respuesta(self):
+        payload = {"id": 999, "tags": ["user_product_seller", "warehouse_management", "multiwarehouse"]}
+        with patch("integraciones.ml_client.requests.get") as get_mock:
+            get_mock.return_value = _respuesta_mock(payload)
+            resultado = ml_client.obtener_usuario("APP_USR-abc", 999)
+        self.assertEqual(resultado, payload)

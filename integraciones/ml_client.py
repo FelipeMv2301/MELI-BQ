@@ -67,7 +67,13 @@ def refrescar_token(refresh_token):
 
 def obtener_usuario(access_token, user_id):
     """HU-CM0.3 — trae los tags del seller (user_product_seller, warehouse_management, ...)."""
-    raise NotImplementedError
+    respuesta = requests.get(
+        f"{BASE_URL}/users/{user_id}",
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=15,
+    )
+    respuesta.raise_for_status()
+    return respuesta.json()
 
 
 def publicar_item(access_token, payload):

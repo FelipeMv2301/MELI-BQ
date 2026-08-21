@@ -101,6 +101,38 @@ class ConfiguracionSyncML(models.Model):
         return cls.objects.get_or_create(pk=1)[0]
 
 
+class PerfilSellerML(models.Model):
+    """
+    HU-CM0.3 — tags reales del seller en Mercado Libre (SPK-MELI-2), consultados una vez tras el
+    login (ver `services.actualizar_perfil_seller`, llamado desde `views.ml_callback`). Condicionan
+    qué endpoint de stock usar más adelante (HU-CM3.2): `PUT /items/$ITEM_ID` (legacy o User
+    Products sin multiorigen) vs `PUT /user-products/.../stock` (multiorigen activo).
+    Fila única — `obtener()` siempre trabaja sobre pk=1.
+    """
+
+    tags = models.JSONField(default=list, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Perfil del seller en Mercado Libre"
+        verbose_name_plural = "Perfil del seller en Mercado Libre"
+
+    def __str__(self):
+        return f"Tags: {', '.join(self.tags) or '(sin datos)'}"
+
+    @classmethod
+    def obtener(cls):
+        return cls.objects.get_or_create(pk=1)[0]
+
+    @property
+    def usa_user_products(self):
+        return "user_product_seller" in self.tags
+
+    @property
+    def tiene_multiorigen(self):
+        return "warehouse_management" in self.tags and "multiwarehouse" in self.tags
+
+
 class MLToken(models.Model):
     """
     Token OAuth2 de la app de Mercado Libre (HU-CM0.2) — una sola fila, siempre la más reciente
