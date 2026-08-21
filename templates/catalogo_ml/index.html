@@ -20,19 +20,24 @@
     <button type="submit" class="text-sm font-semibold px-4 py-2 rounded-full bg-brand text-white hover:bg-brand-ink shadow-sm">Guardar</button>
   </form>
 
-  {% if hay_token_ml %}
-  <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-apro-ink bg-apro-bg px-3 py-2 rounded-full">
-    <span class="w-1.5 h-1.5 rounded-full bg-apro-dot"></span> Conectado a Mercado Libre
-  </span>
-  {% if modelo_item %}
-  <span class="text-sm text-muted">Modelo de ítem: <b class="text-body">{{ modelo_item }}</b></span>
-  {% endif %}
-  {% else %}
-  <a href="{% url 'catalogo_ml:ml_login' %}"
-     class="text-sm font-semibold px-4 py-2 rounded-full bg-brand text-white hover:bg-brand-ink shadow-sm">
-    Conectar con Mercado Libre
-  </a>
-  {% endif %}
+  <div class="flex items-center gap-3">
+    {% if hay_token_ml %}
+    <span class="inline-flex items-center gap-1.5 text-sm font-semibold text-apro-ink bg-apro-bg px-3 py-2 rounded-full">
+      <span class="w-1.5 h-1.5 rounded-full bg-apro-dot"></span> Conectado a Mercado Libre
+    </span>
+    {% if modelo_item %}
+    <span class="text-sm text-muted">Modelo de ítem: <b class="text-body">{{ modelo_item }}</b></span>
+    {% endif %}
+    {% endif %}
+    {# Siempre visible, no solo cuando falta conectar: la fila de MLToken puede seguir existiendo
+       con el access_token vencido y sin refresh_token (login previo al fix del scope), y ahí
+       "hay_token_ml" da True aunque la conexión ya no sirva — sin este link no habría forma de
+       volver a autorizar desde la UI. #}
+    <a href="{% url 'catalogo_ml:ml_login' %}"
+       class="text-sm font-semibold px-4 py-2 rounded-full bg-brand text-white hover:bg-brand-ink shadow-sm">
+      {% if hay_token_ml %}Reconectar con Mercado Libre{% else %}Conectar con Mercado Libre{% endif %}
+    </a>
+  </div>
 </div>
 
 <input
