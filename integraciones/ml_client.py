@@ -78,17 +78,18 @@ def obtener_usuario(access_token, user_id):
 
 def buscar_item_por_sku(access_token, seller_id, sku):
     """
-    HU-CM2.2 — antes de publicar, busca si el SKU ya está en la cuenta: en `seller_custom_field`
-    (campo legacy) o en el atributo `SELLER_SKU` vía el parámetro `seller_sku` (forma actual) — un
-    ítem viejo puede estar en cualquiera de los dos según cuándo se publicó. Devuelve el primer
-    item_id que aparezca, o None si no está en ninguno.
+    HU-CM2.2 — antes de publicar, busca si el SKU ya está en la cuenta: por `sku=` (busca sobre
+    `seller_custom_field`, campo legacy) o por `seller_sku=` (atributo `SELLER_SKU`, forma actual)
+    — un ítem viejo puede estar en cualquiera de los dos según cuándo se publicó. Devuelve el
+    primer item_id que aparezca, o None si no está en ninguno.
 
-    Contrato de `results` (array de item_id) no encontrado en las guías de developers.mercadolibre.cl
-    pese a revisar varias páginas relacionadas (Publicar productos, Identificadores de productos,
-    Buscador de productos) — es el contrato general y estable de este endpoint, pero pendiente de
-    confirmar contra una respuesta real apenas haya cuenta conectada con ítems para probar.
+    El parámetro del campo legacy es `sku=`, NO `seller_custom_field=` — usar el nombre del campo
+    como parámetro (como se probó al principio) devuelve la lista general de ítems del vendedor
+    SIN FILTRAR, no vacía. Confirmado contra la cuenta real de bioquimica.cl el 2026-08-21: con
+    `seller_custom_field=` devolvía 50 ítems sin relación con el SKU buscado (ver KeyError/vínculo
+    incorrecto detectado y corregido esa fecha); con `sku=` filtra de verdad.
     """
-    for parametro in ("seller_custom_field", "seller_sku"):
+    for parametro in ("sku", "seller_sku"):
         respuesta = requests.get(
             f"{BASE_URL}/users/{seller_id}/items/search",
             headers={"Authorization": f"Bearer {access_token}"},
